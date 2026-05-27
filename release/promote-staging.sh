@@ -58,13 +58,23 @@ ssh "$DEPLOY_HOST" "
     else
         echo 'TAGNOTE_IMAGE=${IMAGE_NAME}:${VERSION}' >> .env
     fi
+    if ! grep -q '^OPERATIONAL_BEARER_TOKEN=' .env 2>/dev/null || [ -z \"\$(grep '^OPERATIONAL_BEARER_TOKEN=' .env | cut -d= -f2-)\" ]; then
+        echo \"OPERATIONAL_BEARER_TOKEN=$(openssl rand -hex 32)\" >> .env
+    fi
     docker compose up -d tagnote
 "
 
 # Step 4: Verify
 sleep 3
-HEALTHZ=$(ssh "$DEPLOY_HOST" "curl -sf http://localhost:8080/healthz 2>/dev/null || echo '{}'")
-REPORTED_VERSION=$(echo "$HEALTHZ" | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+STATUS=$(ssh "$DEPLOY_HOST" "
+    OPERATIONAL_TOKEN=\$(grep -s '^OPERATIONAL_BEARER_TOKEN=' ${STAGING_DIR}/.env | cut -d= -f2- || true)
+    if [ -n \"\$OPERATIONAL_TOKEN\" ]; then
+        curl -sf -H \"Authorization: Bearer \$OPERATIONAL_TOKEN\" http://localhost:8080/status 2>/dev/null || echo '{}'
+    else
+        echo '{}'
+    fi
+")
+REPORTED_VERSION=$(echo "$STATUS" | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
 
 if [ "$REPORTED_VERSION" = "$VERSION" ]; then
     ok "Staging deployment verified!"

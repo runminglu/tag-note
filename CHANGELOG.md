@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [1.4.0] - 2026-05-27
+
 ### Added
 
 - Refined open-source project documentation across README, contributing,
@@ -32,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `/status` and `/metrics`, including private-network callers.
 - Rejected Google OAuth logins when Google reports an unverified email address.
 - Added a timeout to Google token verification requests.
+- Updated release verification scripts to read detailed version status from the
+  protected `/status` endpoint instead of public `/healthz`.
 - Prevented magic-link account creation when email delivery is not configured.
 
 ---
@@ -191,7 +197,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/runminglu/tag-note/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/runminglu/tag-note/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/runminglu/tag-note/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/runminglu/tag-note/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/runminglu/tag-note/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/runminglu/tag-note/compare/v0.9.0...v1.2.0

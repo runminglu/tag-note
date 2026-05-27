@@ -50,20 +50,23 @@ if [ "$LOCAL_ARCH" = "x86_64" ]; then
         -p 13777:3000 \
         -e JWT_SECRET=build-test-secret \
         -e TAGNOTE_TEST_MODE=1 \
+        -e OPERATIONAL_BEARER_TOKEN=build-test-operational-token \
         "${IMAGE_NAME}:${VERSION}")
 
     sleep 2
 
-    HEALTHZ=$(curl -sf http://localhost:13777/healthz 2>/dev/null || echo '{"status":"failed"}')
-    REPORTED_VERSION=$(echo "$HEALTHZ" | grep -o '"version":"[^"]*"' | cut -d'"' -f4)
+    STATUS=$(curl -sf \
+        -H "Authorization: Bearer build-test-operational-token" \
+        http://localhost:13777/status 2>/dev/null || echo '{}')
+    REPORTED_VERSION=$(echo "$STATUS" | grep -o '"version":"[^"]*"' | cut -d'"' -f4)
 
     docker stop "$CONTAINER_ID" > /dev/null 2>&1 || true
 
     if [ "$REPORTED_VERSION" = "$VERSION" ]; then
-        ok "Smoke test passed: /healthz reports version $REPORTED_VERSION"
+        ok "Smoke test passed: /status reports version $REPORTED_VERSION"
     else
         warn "Smoke test: expected version '$VERSION', got '$REPORTED_VERSION'"
-        warn "Health response: $HEALTHZ"
+        warn "Status response: $STATUS"
     fi
 else
     info "Skipping local smoke test (built for amd64, running on $LOCAL_ARCH)"

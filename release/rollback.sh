@@ -47,8 +47,15 @@ if [ "$IMAGE_EXISTS" = "no" ]; then
 fi
 
 # Get current version before rollback
-CURRENT_HEALTHZ=$(ssh "$DEPLOY_HOST" "curl -sf http://localhost:3000/healthz 2>/dev/null || echo '{}'")
-CURRENT_VERSION=$(echo "$CURRENT_HEALTHZ" | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+CURRENT_STATUS=$(ssh "$DEPLOY_HOST" "
+    OPERATIONAL_TOKEN=\$(grep -s '^OPERATIONAL_BEARER_TOKEN=' ${PROD_DIR}/.env | cut -d= -f2- || true)
+    if [ -n \"\$OPERATIONAL_TOKEN\" ]; then
+        curl -sf -H \"Authorization: Bearer \$OPERATIONAL_TOKEN\" http://localhost:3000/status 2>/dev/null || echo '{}'
+    else
+        echo '{}'
+    fi
+")
+CURRENT_VERSION=$(echo "$CURRENT_STATUS" | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
 info "Current version: $CURRENT_VERSION"
 
 # Restore config files and update .env
@@ -89,8 +96,15 @@ ssh "$DEPLOY_HOST" "
 
 # Verify
 sleep 3
-HEALTHZ=$(ssh "$DEPLOY_HOST" "curl -sf http://localhost:3000/healthz 2>/dev/null || echo '{}'")
-ROLLED_VERSION=$(echo "$HEALTHZ" | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
+ROLLED_STATUS=$(ssh "$DEPLOY_HOST" "
+    OPERATIONAL_TOKEN=\$(grep -s '^OPERATIONAL_BEARER_TOKEN=' ${PROD_DIR}/.env | cut -d= -f2- || true)
+    if [ -n \"\$OPERATIONAL_TOKEN\" ]; then
+        curl -sf -H \"Authorization: Bearer \$OPERATIONAL_TOKEN\" http://localhost:3000/status 2>/dev/null || echo '{}'
+    else
+        echo '{}'
+    fi
+")
+ROLLED_VERSION=$(echo "$ROLLED_STATUS" | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
 
 ok "Rolled back from ${CURRENT_VERSION} to ${ROLLED_VERSION}"
 echo "  Check: https://${TAGNOTE_DOMAIN}/healthz"

@@ -111,12 +111,11 @@ curl https://notes.example.com/healthz
 Expected `/healthz` shape:
 
 ```json
-{
-  "status": "ok",
-  "version": "v1.3.2",
-  "db": true
-}
+{"status":"ok"}
 ```
+
+Detailed version, uptime, and database metrics live on `/status`, which requires
+an admin JWT or `OPERATIONAL_BEARER_TOKEN`.
 
 ## Monitoring
 

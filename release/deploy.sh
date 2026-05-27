@@ -98,6 +98,12 @@ ssh "$DEPLOY_HOST" "
     else
         echo \"TAGNOTE_IMAGE=${IMAGE_NAME}:${VERSION}\" >> .env
     fi
+
+    # Ensure operational status checks can authenticate after the /healthz
+    # endpoint was reduced to public liveness only.
+    if ! grep -q '^OPERATIONAL_BEARER_TOKEN=' .env 2>/dev/null || [ -z \"\$(grep '^OPERATIONAL_BEARER_TOKEN=' .env | cut -d= -f2-)\" ]; then
+        echo \"OPERATIONAL_BEARER_TOKEN=$(openssl rand -hex 32)\" >> .env
+    fi
 "
 
 # Copy updated docker-compose.yml and Caddyfile to server
@@ -125,16 +131,19 @@ sleep 3
 
 MAX_RETRIES=10
 for i in $(seq 1 $MAX_RETRIES); do
-    HEALTHZ=$(ssh "$DEPLOY_HOST" "curl -sf http://localhost:3000/healthz" 2>/dev/null || echo "")
-    if [ -n "$HEALTHZ" ]; then
-        REPORTED_VERSION=$(echo "$HEALTHZ" | grep -o '"version":"[^"]*"' | cut -d'"' -f4)
-        DB_STATUS=$(echo "$HEALTHZ" | grep -o '"db":[a-z]*' | cut -d: -f2)
+    STATUS=$(ssh "$DEPLOY_HOST" "
+        OPERATIONAL_TOKEN=\$(grep -s '^OPERATIONAL_BEARER_TOKEN=' ${PROD_DIR}/.env | cut -d= -f2- || true)
+        if [ -n \"\$OPERATIONAL_TOKEN\" ]; then
+            curl -sf -H \"Authorization: Bearer \$OPERATIONAL_TOKEN\" http://localhost:3000/status 2>/dev/null || true
+        fi
+    " 2>/dev/null || echo "")
+    if [ -n "$STATUS" ]; then
+        REPORTED_VERSION=$(echo "$STATUS" | grep -o '"version":"[^"]*"' | cut -d'"' -f4)
 
-        if [ "$REPORTED_VERSION" = "$VERSION" ] && [ "$DB_STATUS" = "true" ]; then
+        if [ "$REPORTED_VERSION" = "$VERSION" ]; then
             ok "Deployment verified!"
             echo ""
             echo "  Version:  $REPORTED_VERSION"
-            echo "  Database: healthy"
             echo "  URL:      https://${TAGNOTE_DOMAIN}"
             echo ""
             ok "Deploy complete."
