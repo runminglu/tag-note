@@ -34,11 +34,11 @@ temporary volume.
 Do not run Go commands directly on the host. Use Docker:
 
 ```bash
-docker run --rm -v "$(pwd)":/app -w /app golang:1.22-alpine go mod tidy
-docker run --rm -v "$(pwd)":/app -w /app golang:1.22-alpine go build ./internal/...
-docker run --rm -v "$(pwd)":/app -w /app golang:1.22-alpine go test ./...
-docker run --rm -v "$(pwd)":/app -w /app golang:1.22-alpine go vet ./...
-docker run --rm -v "$(pwd)":/app -w /app golang:1.22-alpine gofmt -w cmd internal
+docker run --rm -v "$(pwd)":/app -w /app golang:1.26-alpine go mod tidy
+docker run --rm -v "$(pwd)":/app -w /app golang:1.26-alpine go build ./internal/...
+docker run --rm -v "$(pwd)":/app -w /app golang:1.26-alpine go test ./...
+docker run --rm -v "$(pwd)":/app -w /app golang:1.26-alpine go vet ./...
+docker run --rm -v "$(pwd)":/app -w /app golang:1.26-alpine gofmt -w cmd internal
 ```
 
 Run the app locally with Docker Compose, not `go run`:
@@ -113,7 +113,7 @@ When asked to release `vX.Y.Z`:
 
 ## Architecture
 
-- Stack: Go 1.22, Fiber v2, SQLite via pure-Go driver, vanilla JavaScript, EasyMDE.
+- Stack: Go 1.26, Fiber v2, SQLite via pure-Go driver, vanilla JavaScript, EasyMDE.
 - Entry point: `cmd/tagnote-server/main.go`.
 - Layers: handler -> service -> repository.
 - Frontend: embedded files in `web/`.

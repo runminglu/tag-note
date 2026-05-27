@@ -20,7 +20,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.26"
           cache: true
 
       - name: Check formatting
@@ -59,6 +59,8 @@ jobs:
             -p 13777:3000 \
             -e JWT_SECRET=e2e-test-secret \
             -e TAGNOTE_TEST_MODE=1 \
+            -e ADMIN_EMAIL=test@test.com \
+            -e OPERATIONAL_BEARER_TOKEN=e2e-operational-token \
             tag-note:e2e
 
           for i in $(seq 1 30); do

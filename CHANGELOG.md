@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Refined open-source project documentation across README, contributing,
   testing, security, operations, and release guides.
+- Added npm Dependabot coverage.
+
+### Changed
+
+- Updated Go and Alpine base image references for supported release lines.
+- Generated public SEO metadata from deployment URL settings.
+- Removed the stale `tagflow-server` command.
+- Clarified uploaded image attachment privacy as link-private.
+
+### Fixed
+
+- Blocked public Caddy access to `/status` and `/metrics` while preserving
+  private Docker-network monitoring access.
+- Prevented magic-link account creation when email delivery is not configured.
 
 ---
 

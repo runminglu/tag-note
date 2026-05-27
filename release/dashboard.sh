@@ -56,7 +56,7 @@ DASHBOARD_DATA=$(ssh "$DEPLOY_HOST" bash -s << 'REMOTE_SCRIPT'
     ls -1 /opt/tagnote/backups/*.tar.gz 2>/dev/null | wc -l
 
     echo "===TLS_EXPIRY==="
-    echo | openssl s_client -servername example.com -connect example.com:443 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || echo "N/A"
+    echo | openssl s_client -servername ${TAGNOTE_DOMAIN} -connect ${TAGNOTE_DOMAIN}:443 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2 || echo "N/A"
 
     echo "===RECENT_ERRORS==="
     cd /opt/tagnote && docker compose logs --tail=100 tagnote 2>/dev/null | grep -iE "error|fatal|panic" | tail -5 || echo "none"

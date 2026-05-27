@@ -211,6 +211,11 @@ func (h *AuthHandler) RequestMagicLink(c *fiber.Ctx) error {
 		})
 	}
 	if err := h.auth.RequestMagicLink(c.Context(), req); err != nil {
+		if errors.Is(err, service.ErrEmailDisabled) {
+			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+				"error": "magic link login is not configured",
+			})
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": err.Error(),
 		})

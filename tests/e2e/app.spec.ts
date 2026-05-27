@@ -76,3 +76,41 @@ test('guest mode can create a local note', async ({ page }) => {
   await createNote(page, content, tag);
   await expect(page.getByTestId('note-card').filter({ hasText: content })).toBeVisible();
 });
+
+test('operational endpoints are protected for public proxy traffic', async ({ request }) => {
+  for (const path of ['/status', '/metrics']) {
+    const publicResponse = await request.get(path, {
+      headers: { 'X-Forwarded-For': '203.0.113.10' },
+    });
+    expect(publicResponse.status(), `${path} should reject public unauthenticated traffic`).toBe(401);
+
+    const tokenResponse = await request.get(path, {
+      headers: {
+        'X-Forwarded-For': '203.0.113.10',
+        Authorization: 'Bearer e2e-operational-token',
+      },
+    });
+    expect(tokenResponse.status(), `${path} should accept the operational bearer token`).toBe(200);
+  }
+});
+
+test('admin jwt can access operational status from public proxy traffic', async ({ request }) => {
+  const loginResponse = await request.post('/api/v1/auth/login', {
+    data: {
+      email: 'test@test.com',
+      password: 'testpass123',
+    },
+  });
+  expect(loginResponse.ok()).toBeTruthy();
+  const body = await loginResponse.json();
+  expect(body.token).toBeTruthy();
+
+  const statusResponse = await request.get('/status', {
+    headers: {
+      'X-Forwarded-For': '203.0.113.10',
+      Authorization: `Bearer ${body.token}`,
+    },
+  });
+  expect(statusResponse.status()).toBe(200);
+  await expect(statusResponse).toBeOK();
+});

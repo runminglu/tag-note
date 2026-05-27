@@ -93,4 +93,4 @@ HEALTHZ=$(ssh "$DEPLOY_HOST" "curl -sf http://localhost:3000/healthz 2>/dev/null
 ROLLED_VERSION=$(echo "$HEALTHZ" | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
 
 ok "Rolled back from ${CURRENT_VERSION} to ${ROLLED_VERSION}"
-echo "  Check: https://example.com/healthz"
+echo "  Check: https://${TAGNOTE_DOMAIN}/healthz"

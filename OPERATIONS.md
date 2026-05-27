@@ -135,15 +135,21 @@ Keep off-server backups for production systems.
 
 ```bash
 curl https://notes.example.com/healthz
-curl https://notes.example.com/status
-curl https://notes.example.com/metrics
+curl http://localhost:3000/status
+curl http://localhost:3000/metrics
 ```
 
 | Endpoint | Purpose |
 | --- | --- |
 | `/healthz` | Liveness, version, uptime, DB connectivity. |
-| `/status` | App counts and database size. |
-| `/metrics` | Prometheus-compatible metrics. |
+| `/status` | App counts and database size. Keep private. |
+| `/metrics` | Prometheus-compatible metrics. Keep private. |
+
+`/status` and `/metrics` are protected. Access is allowed for private-network
+callers without `X-Forwarded-For`, authenticated admin users using
+`Authorization: Bearer <jwt>`, or callers using
+`Authorization: Bearer <OPERATIONAL_BEARER_TOKEN>` when that environment
+variable is set.
 
 ### Grafana And VictoriaMetrics
 
@@ -227,6 +233,7 @@ Set the admin email in `.env`:
 
 ```bash
 ADMIN_EMAIL=admin@example.com
+OPERATIONAL_BEARER_TOKEN=<random-token-for-monitors>
 ```
 
 Then sign in as that user and open:

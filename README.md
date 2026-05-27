@@ -68,9 +68,10 @@ Copy `.env.example` to `.env` and set values as needed.
 | `JWT_SECRET` | Production | empty | Secret used to sign JWTs. Generate with `openssl rand -hex 32`. |
 | `TAGNOTE_ALLOW_DEV_SECRET` | No | `0` | Set to `1` only for local development without `JWT_SECRET`. |
 | `TAGNOTE_TEST_MODE` | No | `0` | Set to `1` to create the test account at startup. |
-| `TAGNOTE_DOMAIN` | Production | `notes.example.com` | Domain used by Compose/Caddy examples. |
+| `TAGNOTE_DOMAIN` | Production | `notes.example.com` | Your production domain for Compose/Caddy examples. |
 | `BASE_URL` | Recommended | `http://localhost:3000` | Public app URL used in generated links. |
 | `ADMIN_EMAIL` | No | empty | Email address that can access `/admin`. |
+| `OPERATIONAL_BEARER_TOKEN` | No | empty | Optional static bearer token for `/status` and `/metrics`. |
 | `GOOGLE_CLIENT_ID` | No | empty | Enables "Sign in with Google" when set. |
 | `GRAFANA_ADMIN_PASSWORD` | No | `admin` | Local/monitoring Grafana admin password. |
 
@@ -161,6 +162,17 @@ API routes are served under `/api/v1`. All routes except authentication require
 | `GET` | `/api/v1/admin/overview` | Admin overview data. |
 | `GET` | `/api/v1/admin/users` | Admin user list. |
 | `GET` | `/api/v1/admin/logs` | Admin audit logs. |
+
+`/status` and `/metrics` are available to private-network callers, admin users
+with a normal JWT bearer token, or callers with `OPERATIONAL_BEARER_TOKEN`.
+
+## Attachment Privacy
+
+Notes, tags, settings, and trash are account-scoped. Uploaded image files are
+stored under random filenames and embedded in notes as `/uploads/...` URLs.
+Treat those image URLs as link-private: anyone who obtains a file URL can fetch
+that specific file. Do not upload sensitive attachments unless your deployment
+adds authenticated media serving.
 
 ## CLI Tools
 

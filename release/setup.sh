@@ -11,7 +11,7 @@
 # Prerequisites:
 #   - SSH key-based auth to deploy@<server> is working
 #   - Docker is installed on the server
-#   - DNS for example.com points to the server
+#   - DNS for TAGNOTE_DOMAIN points to the server
 #
 # Usage:
 #   ./release/setup.sh                    # uses DEPLOY_HOST from config.sh
@@ -81,12 +81,14 @@ ssh "$DEPLOY_HOST" "
     cat > ${PROD_DIR}/.env << 'ENVEOF'
 JWT_SECRET=${JWT_SECRET}
 TAGNOTE_IMAGE=tagnote:latest
-TAGNOTE_DOMAIN=example.com
+TAGNOTE_DOMAIN=${TAGNOTE_DOMAIN}
+BASE_URL=https://${TAGNOTE_DOMAIN}
 TAGNOTE_TEST_MODE=0
 ADMIN_EMAIL=
 GRAFANA_ADMIN_PASSWORD=
 # GOOGLE_CLIENT_ID=
 # TAGNOTE_ALERT_WEBHOOK=
+# OPERATIONAL_BEARER_TOKEN=
 ENVEOF
     chmod 600 ${PROD_DIR}/.env
 "
@@ -124,4 +126,4 @@ echo ""
 echo "    ./release/deploy.sh"
 echo ""
 echo "  After deploy, verify:"
-echo "    curl https://example.com/healthz"
+echo "    curl https://${TAGNOTE_DOMAIN}/healthz"

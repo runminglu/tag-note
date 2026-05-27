@@ -22,19 +22,19 @@ Open `http://localhost:3777/app` and sign in with those credentials.
 ## Backend Tests
 
 ```bash
-docker run --rm -v "$PWD":/app -w /app golang:1.22-alpine go test ./...
+docker run --rm -v "$PWD":/app -w /app golang:1.26-alpine go test ./...
 ```
 
 For vetting:
 
 ```bash
-docker run --rm -v "$PWD":/app -w /app golang:1.22-alpine go vet ./...
+docker run --rm -v "$PWD":/app -w /app golang:1.26-alpine go vet ./...
 ```
 
 For formatting:
 
 ```bash
-docker run --rm -v "$PWD":/app -w /app golang:1.22-alpine gofmt -w cmd internal
+docker run --rm -v "$PWD":/app -w /app golang:1.26-alpine gofmt -w cmd internal
 ```
 
 ## API Smoke Tests
@@ -114,6 +114,8 @@ docker run -d --rm \
   -p 13777:3000 \
   -e JWT_SECRET=e2e-test-secret \
   -e TAGNOTE_TEST_MODE=1 \
+  -e ADMIN_EMAIL=test@test.com \
+  -e OPERATIONAL_BEARER_TOKEN=e2e-operational-token \
   tag-note:e2e
 ```
 

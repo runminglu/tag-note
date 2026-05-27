@@ -26,6 +26,7 @@ var (
 	ErrEmailNotVerified = errors.New("please verify your email first")
 	ErrInvalidToken     = errors.New("invalid or expired token")
 	ErrNoPassword       = errors.New("account does not have a password, please use Google login")
+	ErrEmailDisabled    = errors.New("email delivery is not configured")
 )
 
 // AuthService handles user registration, login, and JWT tokens.
@@ -409,6 +410,10 @@ func (a *AuthService) ResetPassword(ctx context.Context, req model.ResetPassword
 
 // RequestMagicLink sends a magic link for passwordless login or registration.
 func (a *AuthService) RequestMagicLink(ctx context.Context, req model.MagicLinkRequest) error {
+	if !a.emailService.IsEnabled() {
+		return ErrEmailDisabled
+	}
+
 	email := strings.ToLower(strings.TrimSpace(req.Email))
 	if email == "" {
 		return fmt.Errorf("email is required")

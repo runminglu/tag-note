@@ -42,7 +42,7 @@ Credentials are `test@test.com` / `testpass123`.
 Run backend tests through Docker:
 
 ```bash
-docker run --rm -v "$PWD":/app -w /app golang:1.22-alpine go test ./...
+docker run --rm -v "$PWD":/app -w /app golang:1.26-alpine go test ./...
 ```
 
 Run browser tests through Docker as described in [TESTING.md](TESTING.md).

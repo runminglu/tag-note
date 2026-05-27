@@ -6,6 +6,7 @@
 
 # Server connection
 DEPLOY_HOST="${DEPLOY_HOST:-deploy@example.com}"
+TAGNOTE_DOMAIN="${TAGNOTE_DOMAIN:-example.com}"
 PROD_DIR="/opt/tagnote"
 STAGING_DIR="/opt/tagnote-staging"
 

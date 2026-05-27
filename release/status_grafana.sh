@@ -69,7 +69,7 @@ fi
 # External access check
 header "External Access"
 echo -n "Grafana (HTTPS):  "
-EXTERNAL_STATUS=$(curl -s -o /dev/null -w '%{http_code}' "https://example.com/grafana/api/health" 2>/dev/null || echo 'failed')
+EXTERNAL_STATUS=$(curl -s -o /dev/null -w '%{http_code}' "https://${TAGNOTE_DOMAIN}/grafana/api/health" 2>/dev/null || echo 'failed')
 if [ "$EXTERNAL_STATUS" = "200" ]; then
     ok "Accessible (HTTP 200)"
 else
@@ -85,6 +85,6 @@ ssh "$DEPLOY_HOST" "
 
 # Summary
 header "URLs"
-echo "  Grafana:     https://example.com/grafana/"
-echo "  Metrics:     https://example.com/metrics"
+echo "  Grafana:     https://${TAGNOTE_DOMAIN}/grafana/"
+echo "  Metrics:     private Docker network only"
 echo "  VM (direct): http://<server>:8428"

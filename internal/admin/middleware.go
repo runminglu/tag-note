@@ -3,6 +3,9 @@ package admin
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
+	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -46,6 +49,78 @@ func AdminOnly(cfg AdminConfig, auth *service.AuthService) fiber.Handler {
 
 		return c.Next()
 	}
+}
+
+// OperationalAccess allows operational endpoints to be reached by:
+// - internal Docker-network callers without X-Forwarded-For,
+// - callers with OPERATIONAL_BEARER_TOKEN,
+// - authenticated admin users.
+func OperationalAccess(cfg AdminConfig, auth *service.AuthService) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		if c.Get("X-Forwarded-For") == "" && isPrivateIP(c.IP()) {
+			return c.Next()
+		}
+
+		header := c.Get("Authorization")
+		if token := os.Getenv("OPERATIONAL_BEARER_TOKEN"); token != "" && hasBearerToken(header, token) {
+			return c.Next()
+		}
+
+		if !cfg.IsEnabled() {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "admin features are not enabled",
+			})
+		}
+
+		parts := strings.SplitN(header, " ", 2)
+		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "missing or invalid authorization header",
+			})
+		}
+
+		userID, err := auth.ValidateToken(parts[1])
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "invalid or expired token",
+			})
+		}
+
+		user, err := auth.GetUser(c.Context(), userID)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "user not found",
+			})
+		}
+
+		if !strings.EqualFold(user.Email, cfg.AdminEmail) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "admin access required",
+			})
+		}
+
+		return c.Next()
+	}
+}
+
+func hasBearerToken(header, expected string) bool {
+	parts := strings.SplitN(header, " ", 2)
+	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(parts[1]), []byte(expected)) == 1
+}
+
+func isPrivateIP(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err == nil {
+		addr = host
+	}
+	ip := net.ParseIP(addr)
+	if ip == nil {
+		return false
+	}
+	return ip.IsLoopback() || ip.IsPrivate()
 }
 
 // AuditLog is a Fiber middleware that logs admin actions to the audit_logs table.

@@ -36,6 +36,7 @@ Edit `release/config.sh` or override values per command.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `DEPLOY_HOST` | `deploy@example.com` | SSH target for production. |
+| `TAGNOTE_DOMAIN` | `example.com` | Public production hostname. |
 | `PROD_DIR` | `/opt/tagnote` | Production directory on the server. |
 | `STAGING_DIR` | `/opt/tagnote-staging` | Staging directory on the server. |
 | `IMAGE_NAME` | `tagnote` | Local Docker image name. |

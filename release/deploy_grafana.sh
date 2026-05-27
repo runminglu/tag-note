@@ -76,7 +76,7 @@ header "Restarting monitoring stack"
 ssh "$DEPLOY_HOST" "
     cd ${MONITORING_DIR}
     export GRAFANA_ADMIN_PASSWORD='${GRAFANA_PASSWORD}'
-    export TAGNOTE_DOMAIN='example.com'
+    export TAGNOTE_DOMAIN='${TAGNOTE_DOMAIN}'
     docker compose -f docker-compose.monitoring.yml up -d --force-recreate
 "
 ok "Monitoring stack restarted"
@@ -107,7 +107,7 @@ ssh "$DEPLOY_HOST" "
 # Summary
 header "Deploy complete"
 echo ""
-echo "  Grafana URL:      https://example.com/grafana/"
+echo "  Grafana URL:      https://${TAGNOTE_DOMAIN}/grafana/"
 echo "  Username:         admin"
 echo "  Password:         (see ${PROD_DIR}/.env)"
 echo ""
@@ -129,7 +129,7 @@ if [ "$GRAFANA_STATUS" = "200" ]; then
     ok "Grafana is healthy (HTTP 200)"
 else
     warn "Grafana health check returned: ${GRAFANA_STATUS}"
-    echo "  It may take a moment to restart. Try: curl https://example.com/grafana/api/health"
+    echo "  It may take a moment to restart. Try: curl https://${TAGNOTE_DOMAIN}/grafana/api/health"
 fi
 
 echo ""

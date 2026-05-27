@@ -135,7 +135,7 @@ for i in $(seq 1 $MAX_RETRIES); do
             echo ""
             echo "  Version:  $REPORTED_VERSION"
             echo "  Database: healthy"
-            echo "  URL:      https://example.com"
+            echo "  URL:      https://${TAGNOTE_DOMAIN}"
             echo ""
             ok "Deploy complete."
             exit 0

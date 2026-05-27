@@ -83,8 +83,10 @@ func main() {
 	// Metrics middleware — must be registered early to capture all requests
 	app.Use(admin.MetricsMiddleware())
 
-	// Metrics endpoint (for Prometheus/VictoriaMetrics scraping)
-	app.Get("/metrics", admin.ExposeMetrics)
+	operationalAccess := admin.OperationalAccess(adminCfg, authSvc)
+
+	// Metrics endpoint (private network, operational bearer token, or admin JWT)
+	app.Get("/metrics", operationalAccess, admin.ExposeMetrics)
 
 	app.Get("/healthz", func(c *fiber.Ctx) error {
 		dbOK := true
@@ -108,7 +110,7 @@ func main() {
 		})
 	})
 
-	app.Get("/status", func(c *fiber.Ctx) error {
+	app.Get("/status", operationalAccess, func(c *fiber.Ctx) error {
 		db := r.DB()
 
 		var userCount, noteCount, tagCount, trashCount int
@@ -166,8 +168,49 @@ func main() {
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).SendString("landing page not found")
 		}
+		html := strings.ReplaceAll(string(file), "{{BASE_URL}}", publicBaseURL())
 		c.Set("Content-Type", "text/html; charset=utf-8")
-		return c.Send(file)
+		return c.SendString(html)
+	})
+
+	app.Get("/robots.txt", func(c *fiber.Ctx) error {
+		baseURL := publicBaseURL()
+		c.Set("Content-Type", "text/plain; charset=utf-8")
+		return c.SendString("User-agent: *\n" +
+			"Allow: /\n" +
+			"Allow: /privacy\n" +
+			"Allow: /terms\n\n" +
+			"Disallow: /app\n" +
+			"Disallow: /app/\n" +
+			"Disallow: /api/\n" +
+			"Disallow: /healthz\n" +
+			"Disallow: /status\n" +
+			"Disallow: /metrics\n" +
+			"Disallow: /uploads/\n\n" +
+			"Sitemap: " + baseURL + "/sitemap.xml\n")
+	})
+
+	app.Get("/sitemap.xml", func(c *fiber.Ctx) error {
+		baseURL := publicBaseURL()
+		c.Set("Content-Type", "application/xml; charset=utf-8")
+		return c.SendString(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>` + baseURL + `/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>` + baseURL + `/privacy</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>` + baseURL + `/terms</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.3</priority>
+  </url>
+</urlset>`)
 	})
 
 	// Privacy policy
@@ -250,4 +293,14 @@ func main() {
 	}
 
 	fmt.Println("Server stopped")
+}
+
+func publicBaseURL() string {
+	if baseURL := strings.TrimRight(os.Getenv("BASE_URL"), "/"); baseURL != "" {
+		return baseURL
+	}
+	if domain := strings.TrimSpace(os.Getenv("TAGNOTE_DOMAIN")); domain != "" {
+		return "https://" + strings.TrimRight(domain, "/")
+	}
+	return "http://localhost:3000"
 }
