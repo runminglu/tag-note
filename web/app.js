@@ -2787,7 +2787,12 @@ function openFocus(mode, note) {
 
     // Focus the editor
     if (focusEditor) {
-        setTimeout(() => focusEditor.codemirror.focus(), 100);
+        const activeElementAtOpen = document.activeElement;
+        setTimeout(() => {
+            if (document.activeElement === activeElementAtOpen || document.activeElement === document.body) {
+                focusEditor.codemirror.focus();
+            }
+        }, 100);
     }
 
     // Update priority preview
