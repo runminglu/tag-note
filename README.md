@@ -1,428 +1,197 @@
 # TagNote
 
 [![CI](https://github.com/runminglu/tag-note/actions/workflows/ci.yml/badge.svg)](https://github.com/runminglu/tag-note/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A fast note-taking system that organizes your thinking with tags instead of folders.
+TagNote is a self-hosted note-taking app organized around tags instead of folders.
+Write Markdown notes, attach tags, and filter by tag intersections to build a
+living stream of the ideas that matter right now.
 
-## What is TagNote?
+## Highlights
 
-Every note you write gets one or more tags. Filter by any combination of tags and a live *stream* of matching notes appears instantly — no hierarchies to maintain, no folders to shuffle things between, no decisions about where something "belongs." If a note is relevant, it flows into view.
-
-### Why TagNote?
-
-Folders force you to choose *one place* for every idea. But ideas don't live in one place — they sit at the intersection of projects, topics, and contexts. TagNote embraces that reality. Tag a note `#backend` and `#performance` and `#q3-goals`, and it surfaces everywhere it's relevant. Combine tags to zoom in; remove them to zoom out. Your notes become a living, queryable knowledge base that reshapes itself around whatever you're focused on right now.
-
-### How it works
-
-- **Write** — Capture Markdown notes with a rich editor, inline images, and tag autocomplete.
-- **Tag** — Assign one or more tags per note. New tags are flagged for review so your taxonomy stays clean.
-- **Stream** — Filter by any intersection of tags to see exactly the notes you need. Add full-text search to narrow further.
-- **Prioritize** — Set Importance and Urgency on each tag. Notes are color-coded by Eisenhower quadrant so you always know what matters most.
-
-### Lightweight by design
-
-TagNote ships as a **single binary** with the web UI embedded — no Node.js, no build step, no external services. It uses SQLite for storage, so your data lives in one portable file. Deploy with Docker in seconds or run the bare binary directly. Get started in under a minute.
-
-Multi-user support, JWT authentication, a full REST API, CLI tools, five color themes, PWA installability — everything you need, nothing you don't.
-
-**Your notes. Your tags. Your flow.**
+- Tag-first organization with AND filtering across multiple tags.
+- Markdown editor with preview, image upload, and tag autocomplete.
+- Full-text search using SQLite FTS5.
+- Tag review, rename, merge, delete, and priority controls.
+- Trash, pinning, import/export, and user settings.
+- Guest mode for trying the app before creating an account.
+- JWT authentication, password login, magic links, Google OAuth, and email verification.
+- Admin dashboard, audit logs, `/metrics`, `/healthz`, and `/status`.
+- Embedded vanilla JavaScript frontend; no frontend build step.
+- Docker-first local development and deployment.
 
 ## Quick Start
 
 ```bash
-# Copy example env and customize (optional for dev)
 cp .env.example .env
-
-docker compose up --build
+docker compose build
+docker compose up -d
 ```
 
-| URL | Description |
-|-----|-------------|
+Open:
+
+| URL | Purpose |
+| --- | --- |
 | `http://localhost:3777` | Landing page |
-| `http://localhost:3777/app` | App (login / register / notes) |
+| `http://localhost:3777/app` | TagNote app |
+| `http://localhost:3778/grafana/` | Local Grafana dashboard |
 
-Open the landing page to learn about TagNote, or go straight to `/app` to register and start writing.
-
-### Development / Test Mode
-
-To pre-seed a test account (`test@test.com` / `testpass123`), opt in explicitly:
+To seed the local test account:
 
 ```bash
-TAGNOTE_TEST_MODE=1 docker compose up --build
+TAGNOTE_TEST_MODE=1 docker compose build
+TAGNOTE_TEST_MODE=1 docker compose up -d
 ```
 
-## Features
+Test credentials:
 
-- **Tag-based organization** — Every note has one or more tags. Filter by any intersection of tags (AND logic) to see exactly the notes you need.
-- **Full-text search** — FTS5-powered search across all note content, combinable with tag filters.
-- **Rich Markdown editing** — EasyMDE editor with toolbar, side-by-side preview, and image upload (paste, drag-and-drop, or button).
-- **Image uploads** — JPEG, PNG, GIF, and WebP up to 5 MB. Images are auto-compressed client-side before upload.
-- **Masonry card layout** — Notes render as cards in a responsive column grid with collapsible long content.
-- **Tag management** — Approve, rename, merge, or delete tags. New tags start as "unreviewed" with a badge count.
-- **Priority system** — Each tag has Importance (0–100) and Urgency (0–100) sliders. Notes are color-coded by the Eisenhower quadrant of their highest-priority tag.
-- **Color themes** — Light, Dark, Nord, Solarized, and Rose Pine. Respects system preference on first visit.
-- **Multi-user** — JWT-based authentication. Each user has isolated notes and tags.
-- **PWA** — Installable as a standalone app from `/app`. Service worker and manifest are scoped to `/app` — the landing page is not part of the PWA.
-- **CLI tools** — Full-featured command-line clients that talk to the same API as the web UI.
+| Field | Value |
+| --- | --- |
+| Email | `test@test.com` |
+| Password | `testpass123` |
 
-## Web UI
+Stop the local stack without deleting data:
 
-The server serves two distinct pages:
+```bash
+docker compose down
+```
 
-| Route | Content |
-|-------|---------|
-| `/` | Landing page — product overview, features, and CTA to open the app |
-| `/app` | Single-page application — login, notes, tags, editor |
+Do not use `docker compose down -v` unless you intentionally want to delete the
+local Docker volumes and all notes stored in them.
 
-Static assets (`/style.css`, `/app.js`, icons) are shared and served from the root. The PWA (manifest + service worker) is scoped to `/app` only — the landing page has no service worker and no install prompt.
+## Configuration
 
-The SPA at `/app` provides:
+Copy `.env.example` to `.env` and set values as needed.
 
-- **Sidebar** — Tag cloud, tag/text filters, "New note" button, navigation between Notes and Tags views.
-- **Note cards** — Rendered Markdown with inline edit, delete, and full-screen read actions. Clickable tag pills to filter.
-- **Focus overlay** — Full-screen editor for creating or editing notes with tag chip input and autocomplete.
-- **Tag management view** — Table of all tags with status, note count, priority sliders, and bulk actions (approve, rename, delete).
+| Variable | Required | Default | Description |
+| --- | --- | --- | --- |
+| `JWT_SECRET` | Production | empty | Secret used to sign JWTs. Generate with `openssl rand -hex 32`. |
+| `TAGNOTE_ALLOW_DEV_SECRET` | No | `0` | Set to `1` only for local development without `JWT_SECRET`. |
+| `TAGNOTE_TEST_MODE` | No | `0` | Set to `1` to create the test account at startup. |
+| `TAGNOTE_DOMAIN` | Production | `notes.example.com` | Domain used by Compose/Caddy examples. |
+| `BASE_URL` | Recommended | `http://localhost:3000` | Public app URL used in generated links. |
+| `ADMIN_EMAIL` | No | empty | Email address that can access `/admin`. |
+| `GOOGLE_CLIENT_ID` | No | empty | Enables "Sign in with Google" when set. |
+| `GRAFANA_ADMIN_PASSWORD` | No | `admin` | Local/monitoring Grafana admin password. |
 
-## API
+Email is optional. If no email provider is configured, new accounts are
+auto-verified and email-based flows are disabled. Supported providers are
+Amazon SES, SMTP, and sendmail. See [OPERATIONS.md](OPERATIONS.md) for details.
 
-All endpoints (except auth) require a `Bearer` token in the `Authorization` header.
+## Development
+
+The project is Go + Fiber + SQLite with an embedded vanilla JavaScript SPA.
+
+```text
+cmd/                  CLI tools and server entry points
+internal/             application, repository, service, and handler packages
+web/                  embedded HTML, CSS, JavaScript, icons, and PWA assets
+monitoring/           Grafana and VictoriaMetrics configuration
+release/              local build, deploy, rollback, and status scripts
+tests/                Playwright end-to-end tests
+```
+
+Use Docker for local development and testing:
+
+```bash
+docker compose build
+docker compose up -d
+docker compose logs --tail=50
+```
+
+More testing details are in [TESTING.md](TESTING.md).
+
+## API Overview
+
+API routes are served under `/api/v1`. All routes except authentication require
+`Authorization: Bearer <token>`.
 
 ### Authentication
 
-| Method | Endpoint                          | Description                              |
-|--------|-----------------------------------|------------------------------------------|
-| `POST` | `/api/v1/auth/register`           | Create account (sends verification email)|
-| `POST` | `/api/v1/auth/login`              | Login, returns JWT                       |
-| `POST` | `/api/v1/auth/logout`             | Logout (client-side token drop)          |
-| `GET`  | `/api/v1/auth/me`                 | Current user info                        |
-| `POST` | `/api/v1/auth/google`             | Google OAuth login                       |
-| `POST` | `/api/v1/auth/verify-email`       | Verify email with token                  |
-| `POST` | `/api/v1/auth/resend-verification`| Resend verification email                |
-| `POST` | `/api/v1/auth/forgot-password`    | Request password reset email             |
-| `POST` | `/api/v1/auth/reset-password`     | Reset password with token                |
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/v1/auth/register` | Create an account. |
+| `POST` | `/api/v1/auth/login` | Log in with email and password. |
+| `POST` | `/api/v1/auth/logout` | Client-side logout helper. |
+| `GET` | `/api/v1/auth/me` | Return the current user. |
+| `POST` | `/api/v1/auth/google` | Log in with Google OAuth. |
+| `POST` | `/api/v1/auth/verify-email` | Verify an email token. |
+| `POST` | `/api/v1/auth/resend-verification` | Resend verification email. |
+| `POST` | `/api/v1/auth/forgot-password` | Request password reset email. |
+| `POST` | `/api/v1/auth/reset-password` | Reset password with token. |
+| `POST` | `/api/v1/auth/magic-link` | Request a passwordless login link. |
+| `POST` | `/api/v1/auth/verify-magic-link` | Verify a magic-link token. |
 
-### Notes
+### Notes, Tags, And Settings
 
-| Method   | Endpoint                     | Description                          |
-|----------|------------------------------|--------------------------------------|
-| `POST`   | `/api/v1/notes`              | Create a note                        |
-| `GET`    | `/api/v1/notes?tag=X&tag=Y`  | List notes (JSON). AND logic on tags |
-| `GET`    | `/api/v1/notes?q=search`     | Full-text search (combinable with tags) |
-| `GET`    | `/api/v1/notes/stream?tag=X` | Markdown stream                      |
-| `GET`    | `/api/v1/notes/:id`          | Get a single note                    |
-| `PUT`    | `/api/v1/notes/:id`          | Update content and/or tags           |
-| `DELETE` | `/api/v1/notes/:id`          | Delete a note                        |
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/v1/notes` | List notes, with optional `tag`, `q`, `sort`, `limit`, and `offset`. |
+| `POST` | `/api/v1/notes` | Create a note. |
+| `GET` | `/api/v1/notes/stream` | Render filtered notes as Markdown. |
+| `GET` | `/api/v1/notes/export` | Export notes, tags, trash, and settings. |
+| `POST` | `/api/v1/notes/import` | Import exported data. |
+| `GET` | `/api/v1/notes/trash` | List trashed notes. |
+| `GET` | `/api/v1/notes/:id` | Get one note. |
+| `PUT` | `/api/v1/notes/:id` | Update one note. |
+| `PUT` | `/api/v1/notes/:id/pin` | Toggle pin state. |
+| `PUT` | `/api/v1/notes/:id/restore` | Restore a trashed note. |
+| `DELETE` | `/api/v1/notes/:id` | Move a note to trash. |
+| `DELETE` | `/api/v1/notes/:id/permanent` | Permanently delete a note. |
+| `GET` | `/api/v1/tags` | List tag names. |
+| `GET` | `/api/v1/tags/detailed` | List tags with status, counts, and priority. |
+| `GET` | `/api/v1/tags/autocomplete` | Autocomplete tags with `q`. |
+| `PUT` | `/api/v1/tags/approve-all` | Approve all unreviewed tags. |
+| `PUT` | `/api/v1/tags/:name/approve` | Approve one tag. |
+| `PUT` | `/api/v1/tags/:name/rename` | Rename or merge a tag. |
+| `PUT` | `/api/v1/tags/:name/priority` | Set importance and urgency. |
+| `DELETE` | `/api/v1/tags/:name` | Delete a tag without deleting notes. |
+| `GET` | `/api/v1/settings` | Get user settings. |
+| `PUT` | `/api/v1/settings` | Save user settings. |
+| `POST` | `/api/v1/images` | Upload an image. |
 
-### Tags
+### Health, Status, And Admin
 
-| Method   | Endpoint                        | Description                          |
-|----------|---------------------------------|--------------------------------------|
-| `GET`    | `/api/v1/tags`                  | List tag names (sorted by recency)   |
-| `GET`    | `/api/v1/tags/detailed`         | List tags with status, count, priority |
-| `GET`    | `/api/v1/tags/autocomplete?q=X` | Prefix-match autocomplete            |
-| `PUT`    | `/api/v1/tags/:name/approve`    | Mark tag as approved                 |
-| `PUT`    | `/api/v1/tags/:name/rename`     | Rename or merge a tag                |
-| `PUT`    | `/api/v1/tags/:name/priority`   | Set importance/urgency (0–100)       |
-| `DELETE` | `/api/v1/tags/:name`            | Delete a tag (notes are kept)        |
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/healthz` | Liveness, version, uptime, and DB status. |
+| `GET` | `/status` | Basic app and database statistics. |
+| `GET` | `/metrics` | Prometheus-compatible metrics. |
+| `GET` | `/admin` | Admin dashboard UI. |
+| `GET` | `/api/v1/admin/overview` | Admin overview data. |
+| `GET` | `/api/v1/admin/users` | Admin user list. |
+| `GET` | `/api/v1/admin/logs` | Admin audit logs. |
 
-### Images
+## CLI Tools
 
-| Method | Endpoint          | Description                     |
-|--------|-------------------|---------------------------------|
-| `POST` | `/api/v1/images`  | Upload image (multipart, max 5 MB) |
-
-### Example
-
-```bash
-# Register
-curl -X POST http://localhost:3777/api/v1/auth/register \
-  -H 'Content-Type: application/json' \
-  -d '{"email": "me@example.com", "password": "mypassword", "display_name": "Me"}'
-
-# Login
-TOKEN=$(curl -s -X POST http://localhost:3777/api/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email": "me@example.com", "password": "mypassword"}' | jq -r .token)
-
-# Create a note
-curl -X POST http://localhost:3777/api/v1/notes \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"content": "Hello world", "tags": ["demo"]}'
-
-# Search notes
-curl "http://localhost:3777/api/v1/notes?q=hello" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-## CLI Usage
-
-CLI tools are thin HTTP clients that talk to the running server. They require authentication.
-
-### Setup
+The Docker image includes HTTP client CLIs that talk to the running server:
 
 ```bash
-# Login and get a token
 docker compose exec tagnote tagnote-login
-# Follow the prompts, then export the token:
-export TAGNOTE_TOKEN=<token>
-
-# Point at a remote server (default: http://localhost:3000)
-export TAGNOTE_URL=http://your-server:3777
+docker compose exec tagnote tagnote-add -t project "Build the next feature"
+docker compose exec tagnote tagnote-read -t project
+docker compose exec tagnote tagnote-logs -s "keyword"
+docker compose exec tagnote tagnote-tags
+docker compose exec tagnote tagnote-delete <id>
 ```
 
-### Commands
+For remote servers, set `TAGNOTE_URL` and `TAGNOTE_TOKEN` in the environment
+where the CLI runs.
 
-```bash
-# Add a note with tags
-tagnote-add -t project -t ideas "Build a tag-based notes system"
+## Documentation
 
-# Read a markdown stream filtered by tags
-tagnote-read -t project
+- [CONTRIBUTING.md](CONTRIBUTING.md) - contribution workflow and standards.
+- [TESTING.md](TESTING.md) - local, API, and browser testing.
+- [OPERATIONS.md](OPERATIONS.md) - deployment, backups, monitoring, and recovery.
+- [release/README.md](release/README.md) - release script workflow.
+- [SECURITY.md](SECURITY.md) - supported versions and vulnerability reporting.
+- [CHANGELOG.md](CHANGELOG.md) - release history.
 
-# Full-text search within a tag
-tagnote-read -t project -s "stream"
+## Contributing
 
-# View metadata log (ID, timestamp, tags, snippet)
-tagnote-logs -t project
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
+opening a pull request.
 
-# Search across all notes
-tagnote-logs -s "keyword"
+## License
 
-# Delete a note by short ID
-tagnote-delete <id>
-
-# Manage tags
-tagnote-tags                        # List all tags with status and note count
-tagnote-tags approve <name>         # Approve an unreviewed tag
-tagnote-tags rename <old> <new>     # Rename or merge a tag
-tagnote-tags delete <name>          # Delete a tag
-```
-
-## Tech Stack
-
-### Backend
-
-- **Go 1.22** — statically compiled, single binary deployment
-- **Fiber v2** — high-performance web framework built on fasthttp
-- **SQLite** — embedded database via pure-Go driver (`modernc.org/sqlite`, no CGO)
-- **FTS5** — full-text search engine (SQLite extension)
-- **JWT** — stateless authentication (`golang-jwt/jwt`)
-- **bcrypt** — password hashing (`golang.org/x/crypto`)
-- **ULID** — lexicographically sortable unique IDs (`oklog/ulid`)
-- **AWS SES v2** — transactional email (verification, password reset)
-
-### Frontend
-
-- **Vanilla JavaScript** — zero frameworks, no build step, no npm
-- **EasyMDE** — Markdown editor with toolbar and live preview
-- **PWA** — service worker, web manifest, offline support, installable
-- **CSS** — single stylesheet, 8 themes across 4 families (Everforest, Solarized, Gruvbox, Nord — each light/dark)
-
-### Infrastructure
-
-- **Docker** — multi-stage build (Alpine), runs as non-root user
-- **`go:embed`** — entire frontend is embedded in the Go binary
-- **GitHub Actions** — CI (build + integration tests) and release (cross-compile + GHCR push)
-- **Cross-platform** — `linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`
-
-## Architecture
-
-```
-cmd/
-  tagnote-server/    # Fiber HTTP server + embedded SPA
-  tagnote-add/       # CLI: add note
-  tagnote-read/      # CLI: read markdown stream
-  tagnote-logs/      # CLI: metadata log view
-  tagnote-delete/    # CLI: delete note
-  tagnote-tags/      # CLI: tag management (list, approve, rename, delete)
-  tagnote-login/     # CLI: interactive login, prints JWT
-  tagnote-migrate/   # CLI: migrate legacy (pre-auth) data to a user account
-  tagnote-diagnose/  # CLI: database integrity checks
-internal/
-  model/         # Domain types (SubNote, User, TagInfo)
-  repo/          # SQLite repository (migrations, queries, FTS5)
-  service/       # Business logic (ULID generation, tag normalization, auth)
-  handler/       # Fiber route handlers (notes, tags, auth, images)
-  middleware/    # JWT authentication middleware
-  apiclient/     # Shared HTTP client for CLI tools
-web/             # Embedded SPA (HTML, JS, CSS, PWA manifest)
-```
-
-**Stack:** Go 1.22, Fiber v2, SQLite (pure-Go via `modernc.org/sqlite`), JWT (`golang-jwt`), bcrypt, ULIDs.
-
-**Data model:** `users` → `subnotes` ↔ `subnote_tags` ↔ `tags` (many-to-many, scoped per user). Full-text search via `subnotes_fts` (FTS5). Tag intersection queries use `HAVING COUNT(DISTINCT t.id) = N`.
-
-**Routing:** `GET /` → `landing.html`, `GET /app*` → `index.html` (SPA catch-all), static assets served from embedded `web/` directory. PWA manifest and service worker scoped to `/app`.
-
-**Frontend:** Vanilla JS SPA embedded in the Go binary. EasyMDE for Markdown editing. No build tooling.
-
-## Deployment
-
-### Development
-
-```bash
-docker compose up --build
-```
-
-Maps port 3777 → container port 3000. Data persists in a Docker volume (`tagnote-data`).
-
-### Production
-
-```bash
-# Set required env vars
-export TAGNOTE_DOMAIN=notes.example.com
-export JWT_SECRET=$(openssl rand -hex 32)
-
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
-```
-
-The production override exposes ports 80/443 and requires `TAGNOTE_DOMAIN` and `JWT_SECRET`.
-
-### Releasing
-
-Tag a version to trigger the release pipeline:
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-This builds cross-platform binaries, pushes a Docker image to GHCR, and creates a GitHub Release with downloadable tarballs.
-
-## CI/CD
-
-GitHub Actions pipelines live in `.github/workflows/`.
-
-### CI (`ci.yml`)
-
-Runs on every push and pull request to `main`. Two jobs:
-
-| Job | What it does |
-|-----|-------------|
-| **build** | Sets up Go 1.22, generates OG image (SVG→PNG), downloads deps, runs `go vet`, builds all `tagnote-*` binaries |
-| **docker** | Builds Docker image, starts container with test user, runs integration tests against live server |
-
-Integration tests cover:
-
-- Landing page (`/`) returns 200
-- App (`/app`) returns 200
-- All static assets (CSS, JS, icons, OG image, manifest, service worker) return 200
-- Auth flow: login → create note → list notes → verify 401 without token
-
-### Release (`release.yml`)
-
-Runs on version tags (`v*`). Performs:
-
-| Step | Output |
-|------|--------|
-| Cross-compile | `linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64` tarballs |
-| Docker push | Image pushed to `ghcr.io` with semver tags (`v1.0.0`, `v1.0`, `v1`, `latest`) |
-| GitHub Release | Auto-generated release notes with binary tarballs attached |
-
-### Running CI locally
-
-Simulate the CI build job without GitHub Actions:
-
-```bash
-# Generate OG image (requires librsvg)
-brew install librsvg          # macOS
-rsvg-convert web/og-image.svg -o web/og-image.png
-
-# Vet and build
-go vet ./...
-for dir in cmd/tagnote-*/; do
-  CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/$(basename $dir) ./$dir
-done
-
-# Or just use Docker (no local Go/librsvg needed)
-docker compose up --build
-```
-
-Frontend E2E tests are documented in `TESTING.md`. They use Playwright and run
-through Docker so Node dependencies and browsers are not installed on the host.
-
-### Environment Variables
-
-| Variable           | Default              | Description                              |
-|--------------------|----------------------|------------------------------------------|
-| `JWT_SECRET`       | (required)           | HMAC key for signing JWTs. Required unless `TAGNOTE_ALLOW_DEV_SECRET=1`. |
-| `TAGNOTE_TEST_MODE`| `0`                  | Set to `1` to auto-create a test account |
-| `TAGNOTE_ALLOW_DEV_SECRET` | `0`          | Set to `1` only for local development without `JWT_SECRET` |
-| `TAGNOTE_URL`      | `http://localhost:3000` | Server URL for CLI tools              |
-| `TAGNOTE_TOKEN`    | (none)               | JWT token for CLI authentication         |
-| `TAGNOTE_DOMAIN`   | (none)               | Domain name (production deployment)      |
-
-#### Email Configuration
-
-Email is required for email verification and password reset features. If not configured, accounts are auto-verified on registration.
-
-**Priority order:** Amazon SES → SMTP → sendmail. The first configured option is used.
-
-##### Amazon SES (Recommended for Production)
-
-| Variable             | Default      | Description                              |
-|----------------------|--------------|------------------------------------------|
-| `AWS_SES_ACCESS_KEY` | (none)       | AWS access key ID for SES                |
-| `AWS_SES_SECRET_KEY` | (none)       | AWS secret access key for SES            |
-| `AWS_SES_REGION`     | `us-east-1`  | AWS region for SES (e.g., `us-east-1`, `eu-west-1`) |
-
-To use Amazon SES:
-1. Create an IAM user with `AmazonSESFullAccess` permission (or a more restrictive custom policy)
-2. Generate access keys for the IAM user
-3. Verify your sender email address or domain in the SES console
-4. If in sandbox mode, also verify recipient addresses
-
-##### SMTP
-
-| Variable        | Default               | Description                              |
-|-----------------|-----------------------|------------------------------------------|
-| `SMTP_HOST`     | (none)                | SMTP server hostname                     |
-| `SMTP_PORT`     | `587`                 | SMTP server port                         |
-| `SMTP_USER`     | (none)                | SMTP authentication username             |
-| `SMTP_PASSWORD` | (none)                | SMTP authentication password             |
-
-##### Sendmail
-
-| Variable        | Default | Description                              |
-|-----------------|---------|------------------------------------------|
-| `USE_SENDMAIL`  | `0`     | Set to `1` to use system sendmail binary |
-
-##### Common Settings
-
-| Variable        | Default               | Description                              |
-|-----------------|-----------------------|------------------------------------------|
-| `EMAIL_FROM`    | `noreply@example.com` | From address for outgoing emails         |
-| `BASE_URL`      | `http://localhost:3000` | Base URL for links in emails (e.g., `https://notes.example.com`) |
-
-**Email delivery behavior:**
-- **Amazon SES configured** → Emails sent via AWS SES API (recommended for production)
-- **SMTP configured** → Emails sent via SMTP server
-- **USE_SENDMAIL=1** → Uses system `sendmail` command (for servers with working MTA)
-- **None configured** → Email features disabled, accounts are auto-verified on registration
-
-#### Google OAuth (Optional)
-
-| Variable            | Default | Description                              |
-|---------------------|---------|------------------------------------------|
-| `GOOGLE_CLIENT_ID`  | (none)  | Google OAuth Client ID for "Sign in with Google". If not set, the Google button is hidden. |
-
-To enable Google Sign-In:
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing
-3. Go to **APIs & Services** → **Credentials**
-4. Create an **OAuth 2.0 Client ID** (Web application)
-5. Add your domain to **Authorized JavaScript origins** (e.g., `https://notes.example.com`)
-6. Copy the Client ID and set `GOOGLE_CLIENT_ID`
-
-### Server Flags
-
-```
-tagnote-server [-addr :3000] [-db data/tagnote.db] [-uploads data/uploads]
-```
-
-| Flag       | Default           | Description                  |
-|------------|-------------------|------------------------------|
-| `-addr`    | `:3000`           | Listen address               |
-| `-db`      | `data/tagnote.db` | Path to SQLite database file |
-| `-uploads` | `data/uploads`    | Path to image upload directory |
+TagNote is released under the [MIT License](LICENSE).

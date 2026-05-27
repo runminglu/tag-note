@@ -1,73 +1,98 @@
-# Testing TagNote
+# Testing
 
-## Test Mode
+This project is tested through Docker so local runs match CI and do not depend on
+host-installed Go, Node, or browser packages.
 
-TagNote supports a test mode that creates a built-in test user on startup.
+## Local App Test Mode
 
-### Enable test mode
-
-Set the `TAGNOTE_TEST_MODE` environment variable to `1`:
+Test mode creates a built-in user at startup.
 
 ```bash
-# Via docker compose
-TAGNOTE_TEST_MODE=1 docker compose up --build
-
-# Or add to .env file
-echo "TAGNOTE_TEST_MODE=1" >> .env
-docker compose up --build
+TAGNOTE_TEST_MODE=1 docker compose build
+TAGNOTE_TEST_MODE=1 docker compose up -d
 ```
 
-### Test credentials
+| Field | Value |
+| --- | --- |
+| Email | `test@test.com` |
+| Password | `testpass123` |
 
-| Field    | Value           |
-|----------|-----------------|
-| Email    | `test@test.com` |
-| Password | `testpass123`   |
+Open `http://localhost:3777/app` and sign in with those credentials.
 
-### Get a test token (for CLI or API testing)
+## Backend Tests
 
 ```bash
-# Login and get a JWT token
-curl -s -X POST http://localhost:3777/api/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"test@test.com","password":"testpass123"}' | jq -r '.token'
+docker run --rm -v "$PWD":/app -w /app golang:1.22-alpine go test ./...
 ```
 
-### CLI testing with the test account
+For vetting:
 
 ```bash
-# Get token and export it
-export TAGNOTE_TOKEN=$(curl -s -X POST http://localhost:3777/api/v1/auth/login \
+docker run --rm -v "$PWD":/app -w /app golang:1.22-alpine go vet ./...
+```
+
+For formatting:
+
+```bash
+docker run --rm -v "$PWD":/app -w /app golang:1.22-alpine gofmt -w cmd internal
+```
+
+## API Smoke Tests
+
+Start the app in test mode, then obtain a JWT:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:3777/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"test@test.com","password":"testpass123"}' | jq -r '.token')
-
-# Now CLI tools are authenticated
-docker compose exec tagnote tagnote-add -t test "Hello from test user"
-docker compose exec tagnote tagnote-read -t test
-docker compose exec tagnote tagnote-logs -t test
 ```
 
-Or use the interactive login tool inside the container:
+Create and list a note:
+
+```bash
+curl -X POST http://localhost:3777/api/v1/notes \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"content":"Test note","tags":["test"]}'
+
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:3777/api/v1/notes
+```
+
+Verify unauthenticated access is rejected:
+
+```bash
+curl http://localhost:3777/api/v1/notes
+```
+
+Expected response:
+
+```json
+{"error":"missing authorization header"}
+```
+
+## CLI Smoke Tests
 
 ```bash
 docker compose exec tagnote tagnote-login
-# Enter: test@test.com / testpass123
-# Copy the exported TAGNOTE_TOKEN
+docker compose exec tagnote tagnote-add -t test "Hello from test user"
+docker compose exec tagnote tagnote-read -t test
+docker compose exec tagnote tagnote-logs -t test
+docker compose exec tagnote tagnote-tags
 ```
 
-### Web UI testing
+For non-interactive use, export a token inside the environment where the CLI runs:
 
-1. Start the server with `TAGNOTE_TEST_MODE=1`
-2. Open `http://localhost:3777`
-3. Log in with `test@test.com` / `testpass123`
+```bash
+export TAGNOTE_TOKEN="$TOKEN"
+export TAGNOTE_URL=http://localhost:3000
+```
 
 ## Frontend E2E Tests
 
-Frontend browser tests use Playwright. Keep Node dependency installation and
-test execution inside Docker; do not run `npm install`, `npm ci`, or Playwright
-browser installs directly on the host.
+Playwright tests live in `tests/` and use `E2E_BASE_URL`.
 
-### Install or update E2E dependencies
+Install or update Node dependencies through Docker:
 
 ```bash
 docker run --rm \
@@ -79,9 +104,7 @@ docker run --rm \
   npm install
 ```
 
-### Run E2E tests locally
-
-Build and start the app test container:
+Build and start the E2E app container:
 
 ```bash
 docker build -t tag-note:e2e .
@@ -94,7 +117,7 @@ docker run -d --rm \
   tag-note:e2e
 ```
 
-Wait for the app to become healthy:
+Wait for the server:
 
 ```bash
 for i in $(seq 1 30); do
@@ -103,7 +126,7 @@ for i in $(seq 1 30); do
 done
 ```
 
-Run Playwright from the official Playwright Docker image:
+Run Playwright:
 
 ```bash
 docker run --rm \
@@ -117,7 +140,7 @@ docker run --rm \
   npm run test:e2e
 ```
 
-Stop the app container when finished:
+Stop the E2E app:
 
 ```bash
 docker stop tag-note-e2e-local
@@ -126,39 +149,18 @@ docker stop tag-note-e2e-local
 E2E artifacts are written to `test-results/` and `playwright-report/`; both are
 ignored by Git.
 
-### API testing examples
+## CI Coverage
 
-```bash
-TOKEN=$(curl -s -X POST http://localhost:3777/api/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"test@test.com","password":"testpass123"}' | jq -r '.token')
+GitHub Actions currently runs:
 
-# Create a note
-curl -X POST http://localhost:3777/api/v1/notes \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"content":"Test note","tags":["test"]}'
-
-# List notes
-curl -H "Authorization: Bearer $TOKEN" http://localhost:3777/api/v1/notes
-
-# Verify 401 without token
-curl http://localhost:3777/api/v1/notes
-# Should return: {"error":"missing authorization header"}
-```
-
-## Environment Variables
-
-| Variable            | Description                                          | Default                    |
-|---------------------|------------------------------------------------------|----------------------------|
-| `JWT_SECRET`        | Secret key for signing JWT tokens                    | `tagnote-dev-secret`       |
-| `TAGNOTE_TEST_MODE` | Set to `1` to create the test user on startup        | `0`                        |
-| `TAGNOTE_TOKEN`     | JWT token for CLI authentication                     | (none)                     |
-| `TAGNOTE_URL`       | Server URL for CLI tools                             | `http://localhost:3000`    |
+- Formatting check.
+- `go vet ./...`.
+- `go test ./...`.
+- Docker image build.
+- Playwright E2E tests against a Dockerized app.
 
 ## Legacy Data
 
-Existing data (created before multi-user auth) is owned by a placeholder user
-(`00000000000000000000000000` / `legacy@placeholder.local`). This data is not
-visible to new accounts. To migrate legacy data to your account, ask for a
-data migration after creating your account.
+Older data created before multi-user authentication may belong to the legacy
+placeholder user. Use `tagnote-migrate` only after creating the target account
+and backing up the database.

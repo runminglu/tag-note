@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- Refined open-source project documentation across README, contributing,
+  testing, security, operations, and release guides.
+
+---
+
 ## [1.3.1] - 2026-03-05
 
 ### Added
