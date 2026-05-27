@@ -34,12 +34,14 @@ temporary volume.
 Do not run Go commands directly on the host. Use Docker:
 
 ```bash
-docker run --rm -v "$(pwd)":/app -w /app golang:1.26-alpine go mod tidy
-docker run --rm -v "$(pwd)":/app -w /app golang:1.26-alpine go build ./internal/...
-docker run --rm -v "$(pwd)":/app -w /app golang:1.26-alpine go test ./...
-docker run --rm -v "$(pwd)":/app -w /app golang:1.26-alpine go vet ./...
-docker run --rm -v "$(pwd)":/app -w /app golang:1.26-alpine gofmt -w cmd internal
+docker build --target test .
+docker compose build
+docker compose up -d
 ```
+
+The Dockerfile `test` stage runs `gofmt -l cmd internal`, `go vet ./...`, and
+`go test ./...`. If dependencies need to be updated, use a temporary Docker
+command only for that maintenance task.
 
 Run the app locally with Docker Compose, not `go run`:
 

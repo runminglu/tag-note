@@ -1,4 +1,4 @@
-FROM golang:1.26-alpine AS builder
+FROM golang:1.26-alpine AS base
 
 RUN apk add --no-cache git rsvg-convert
 
@@ -8,6 +8,14 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
+
+FROM base AS test
+
+RUN test -z "$(gofmt -l cmd internal)"
+RUN go vet ./...
+RUN go test ./...
+
+FROM base AS builder
 
 ARG VERSION=dev
 ARG BUILD_TIME=unknown

@@ -22,20 +22,11 @@ Open `http://localhost:3777/app` and sign in with those credentials.
 ## Backend Tests
 
 ```bash
-docker run --rm -v "$PWD":/app -w /app golang:1.26-alpine go test ./...
+docker build --target test .
 ```
 
-For vetting:
-
-```bash
-docker run --rm -v "$PWD":/app -w /app golang:1.26-alpine go vet ./...
-```
-
-For formatting:
-
-```bash
-docker run --rm -v "$PWD":/app -w /app golang:1.26-alpine gofmt -w cmd internal
-```
+The Dockerfile `test` stage checks formatting with `gofmt -l cmd internal`,
+runs `go vet ./...`, and runs `go test ./...`.
 
 ## API Smoke Tests
 
@@ -155,9 +146,7 @@ ignored by Git.
 
 GitHub Actions currently runs:
 
-- Formatting check.
-- `go vet ./...`.
-- `go test ./...`.
+- Dockerfile `test` stage: formatting, `go vet ./...`, and `go test ./...`.
 - Docker image build.
 - Playwright E2E tests against a Dockerized app.
 
