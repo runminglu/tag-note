@@ -8,8 +8,15 @@ host-installed Go, Node, or browser packages.
 Test mode creates a built-in user at startup.
 
 ```bash
-TAGNOTE_TEST_MODE=1 docker compose build
-TAGNOTE_TEST_MODE=1 docker compose up -d
+TAGNOTE_TEST_MODE=1 \
+ADMIN_EMAIL=test@test.com \
+OPERATIONAL_BEARER_TOKEN=e2e-operational-token \
+docker compose build
+
+TAGNOTE_TEST_MODE=1 \
+ADMIN_EMAIL=test@test.com \
+OPERATIONAL_BEARER_TOKEN=e2e-operational-token \
+docker compose up -d
 ```
 
 | Field | Value |
@@ -120,13 +127,12 @@ for i in $(seq 1 30); do
 done
 ```
 
-Run Playwright:
+Run Playwright against the isolated E2E container:
 
 ```bash
 docker run --rm \
   --user "$(id -u):$(id -g)" \
-  --network host \
-  -e E2E_BASE_URL=http://127.0.0.1:13777 \
+  -e E2E_BASE_URL=http://host.docker.internal:13777 \
   -e npm_config_cache=/tmp/.npm \
   -v "$PWD":/app \
   -w /app \
@@ -142,6 +148,65 @@ docker stop tag-note-e2e-local
 
 E2E artifacts are written to `test-results/` and `playwright-report/`; both are
 ignored by Git.
+
+### Remote SSH E2E
+
+Use this when Docker or browser execution should happen through a remote Linux
+host. Use a staging or disposable test host, not the production host. The remote
+container is isolated from production data because it uses `--rm`, no mounted
+app volume, and a temporary container filesystem.
+
+Build and start the remote E2E app:
+
+```bash
+export E2E_HOST=deploy@staging.example.com
+export REMOTE_REPO=/opt/tag_note
+
+ssh "$E2E_HOST" "cd $REMOTE_REPO && docker build -t tag-note:e2e ."
+
+ssh "$E2E_HOST" "docker rm -f tag-note-e2e-remote >/dev/null 2>&1 || true"
+
+ssh "$E2E_HOST" "docker run -d --rm \
+  --name tag-note-e2e-remote \
+  -p 127.0.0.1:13777:3000 \
+  -e JWT_SECRET=e2e-test-secret \
+  -e TAGNOTE_TEST_MODE=1 \
+  -e ADMIN_EMAIL=test@test.com \
+  -e OPERATIONAL_BEARER_TOKEN=e2e-operational-token \
+  tag-note:e2e"
+
+ssh "$E2E_HOST" "for i in \$(seq 1 30); do \
+  curl -fsS http://127.0.0.1:13777/healthz >/dev/null && exit 0; \
+  sleep 1; \
+done; \
+docker logs tag-note-e2e-remote; \
+exit 1"
+```
+
+In another terminal, keep an SSH tunnel open:
+
+```bash
+ssh -N -L 13777:127.0.0.1:13777 "$E2E_HOST"
+```
+
+Run Playwright locally through the tunnel:
+
+```bash
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  -e E2E_BASE_URL=http://host.docker.internal:13777 \
+  -e npm_config_cache=/tmp/.npm \
+  -v "$PWD":/app \
+  -w /app \
+  mcr.microsoft.com/playwright:v1.60.0-noble \
+  npm run test:e2e
+```
+
+Stop the remote E2E app when finished:
+
+```bash
+ssh "$E2E_HOST" "docker rm -f tag-note-e2e-remote"
+```
 
 ## CI Coverage
 

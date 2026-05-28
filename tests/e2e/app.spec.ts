@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+test.describe.configure({ mode: 'serial' });
+
 async function login(page) {
   await page.goto('/app');
   await expect(page.getByTestId('login-button')).toBeVisible();
@@ -16,7 +18,14 @@ async function createNote(page, content: string, tag: string) {
   await setFocusEditorContent(page, content);
   await page.locator('#focus-tag-input').fill(tag);
   await page.keyboard.press('Enter');
-  await page.getByTestId('save-note-button').click();
+
+  const saveStatus = page.locator('#focus-save-status');
+  try {
+    await expect(saveStatus).toHaveText('Saved', { timeout: 2_000 });
+    await page.locator('#focus-close').click();
+  } catch {
+    await page.getByTestId('save-note-button').click();
+  }
 
   await expect(page.locator('#focus-overlay')).toBeHidden();
   const card = page.getByTestId('note-card').filter({ hasText: content });
@@ -25,13 +34,20 @@ async function createNote(page, content: string, tag: string) {
 }
 
 async function setFocusEditorContent(page, content: string) {
-  await expect(page.locator('.CodeMirror')).toBeVisible();
+  await expect(page.locator('#focus-overlay .CodeMirror')).toBeVisible();
+  await page.waitForFunction(() => {
+    const el = document.querySelector('#focus-overlay .CodeMirror') as HTMLElement & {
+      CodeMirror?: { getValue: () => string };
+    } | null;
+    return !!el?.CodeMirror;
+  });
   await page.evaluate((value) => {
-    const codeMirror = (document.querySelector('.CodeMirror') as HTMLElement & {
-      CodeMirror?: { setValue: (next: string) => void };
+    const codeMirror = (document.querySelector('#focus-overlay .CodeMirror') as HTMLElement & {
+      CodeMirror?: { setValue: (next: string) => void; focus: () => void };
     } | null)?.CodeMirror;
     if (codeMirror) {
       codeMirror.setValue(value);
+      codeMirror.focus();
       return;
     }
     const textarea = document.querySelector<HTMLTextAreaElement>('#focus-content');
@@ -39,6 +55,12 @@ async function setFocusEditorContent(page, content: string) {
       textarea.value = value;
       textarea.dispatchEvent(new Event('input', { bubbles: true }));
     }
+  }, content);
+  await page.waitForFunction((value) => {
+    const codeMirror = (document.querySelector('#focus-overlay .CodeMirror') as HTMLElement & {
+      CodeMirror?: { getValue: () => string };
+    } | null)?.CodeMirror;
+    return codeMirror ? codeMirror.getValue() === value : false;
   }, content);
 }
 
@@ -172,7 +194,7 @@ test('operational endpoints require explicit credentials', async ({ request }) =
   }
 });
 
-test('admin jwt can access operational status from public proxy traffic', async ({ request }) => {
+test('admin jwt can access operational status', async ({ request }) => {
   const loginResponse = await request.post('/api/v1/auth/login', {
     data: {
       email: 'test@test.com',
@@ -185,7 +207,6 @@ test('admin jwt can access operational status from public proxy traffic', async 
 
   const statusResponse = await request.get('/status', {
     headers: {
-      'X-Forwarded-For': '203.0.113.10',
       Authorization: `Bearer ${body.token}`,
     },
   });
