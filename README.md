@@ -7,6 +7,11 @@ TagNote is a self-hosted note-taking app organized around tags instead of folder
 Write Markdown notes, attach tags, and filter by tag intersections to build a
 living stream of the ideas that matter right now.
 
+Try the hosted app at [tag-note.com](https://tag-note.com/), or run your own
+instance with Docker.
+
+![TagNote app showing guest mode, tag filters, and Markdown note cards](docs/assets/tag-note-app.png)
+
 ## Highlights
 
 - Tag-first organization with AND filtering across multiple tags.
@@ -32,6 +37,7 @@ Open:
 
 | URL | Purpose |
 | --- | --- |
+| `https://tag-note.com/` | Hosted TagNote app |
 | `http://localhost:3777` | Landing page |
 | `http://localhost:3777/app` | TagNote app |
 | `http://localhost:3778/grafana/` | Local Grafana dashboard |
