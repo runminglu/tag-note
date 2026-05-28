@@ -38,8 +38,13 @@ Open:
 | URL | Purpose |
 | --- | --- |
 | `https://tag-note.com/` | Hosted TagNote app |
-| `http://localhost:3777` | Landing page |
+| `http://localhost:3777/` | Landing page |
 | `http://localhost:3777/app` | TagNote app |
+| `http://localhost:3777/admin` | Admin dashboard |
+| `http://localhost:3777/healthz` | Public health check |
+| `http://localhost:3777/status` | Operational status |
+| `http://localhost:3777/metrics` | Prometheus-compatible metrics |
+| `http://localhost:3778/` | Local Caddy proxy |
 | `http://localhost:3778/grafana/` | Local Grafana dashboard |
 
 To seed the local test account:

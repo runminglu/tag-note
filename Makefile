@@ -1,4 +1,4 @@
-.PHONY: all build run stop clean release staging status dashboard
+.PHONY: all build run start up stop down clean release staging status dashboard
 
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 
@@ -11,8 +11,14 @@ run:
 	docker compose up --build -d
 	./scripts/dev-links.sh
 
+start: run
+
+up: run
+
 stop:
 	docker compose down
+
+down: stop
 
 clean:
 	docker compose down
