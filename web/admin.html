@@ -232,6 +232,32 @@
             border: 1px solid var(--border);
         }
 
+        .admin-button {
+            padding: 0.45rem 0.85rem;
+            background: var(--bg-card);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .admin-button:hover {
+            background: var(--bg-sidebar);
+        }
+        .metrics-output {
+            max-height: 360px;
+            overflow: auto;
+            padding: 1rem;
+            background: var(--codeblock-bg);
+            color: var(--codeblock-text);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+            font-size: 0.8rem;
+            line-height: 1.5;
+            white-space: pre;
+        }
+
         .loading {
             text-align: center;
             padding: 2rem;
@@ -330,6 +356,17 @@
             </div>
         </section>
 
+        <!-- Metrics -->
+        <section class="section">
+            <div class="section-header">
+                <h2>Metrics</h2>
+                <div class="actions">
+                    <button class="admin-button" id="metrics-refresh" type="button">Refresh</button>
+                </div>
+            </div>
+            <pre id="metrics-output" class="metrics-output">Loading metrics...</pre>
+        </section>
+
         <!-- Registered Users -->
         <section class="section">
             <div class="section-header">
@@ -389,6 +426,31 @@
                 throw new Error(err.error || res.statusText);
             }
             return res.json();
+        }
+
+        async function loadMetrics() {
+            const output = document.getElementById('metrics-output');
+            output.textContent = 'Loading metrics...';
+            try {
+                const res = await fetch('/metrics', {
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+                const text = await res.text();
+                if (res.status === 401 || res.status === 403) {
+                    output.textContent = 'Access denied. You must be logged in as admin.';
+                    return;
+                }
+                if (!res.ok) {
+                    output.textContent = text || ('Failed to load metrics: ' + res.statusText);
+                    return;
+                }
+                output.textContent = text || 'No metrics returned.';
+            } catch (e) {
+                output.textContent = 'Failed to load metrics.';
+                console.error('Failed to load metrics:', e);
+            }
         }
 
         async function loadOverview() {
@@ -577,8 +639,10 @@
 
         // Initial load
         loadOverview();
+        loadMetrics();
         loadUsers();
         loadLogs();
+        document.getElementById('metrics-refresh').addEventListener('click', loadMetrics);
 
         // Auto-refresh overview every 60 seconds
         setInterval(loadOverview, 60000);

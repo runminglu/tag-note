@@ -2,6 +2,23 @@ import { expect, test } from '@playwright/test';
 
 test.describe.configure({ mode: 'serial' });
 
+let adminToken = '';
+
+async function getAdminToken(request) {
+  if (adminToken) return adminToken;
+  const loginResponse = await request.post('/api/v1/auth/login', {
+    data: {
+      email: 'test@test.com',
+      password: 'testpass123',
+    },
+  });
+  expect(loginResponse.ok()).toBeTruthy();
+  const body = await loginResponse.json();
+  expect(body.token).toBeTruthy();
+  adminToken = body.token;
+  return adminToken;
+}
+
 async function login(page) {
   await page.goto('/app');
   await expect(page.getByTestId('login-button')).toBeVisible();
@@ -195,21 +212,25 @@ test('operational endpoints require explicit credentials', async ({ request }) =
 });
 
 test('admin jwt can access operational status', async ({ request }) => {
-  const loginResponse = await request.post('/api/v1/auth/login', {
-    data: {
-      email: 'test@test.com',
-      password: 'testpass123',
-    },
-  });
-  expect(loginResponse.ok()).toBeTruthy();
-  const body = await loginResponse.json();
-  expect(body.token).toBeTruthy();
+  const token = await getAdminToken(request);
 
   const statusResponse = await request.get('/status', {
     headers: {
-      Authorization: `Bearer ${body.token}`,
+      Authorization: `Bearer ${token}`,
     },
   });
   expect(statusResponse.status()).toBe(200);
   await expect(statusResponse).toBeOK();
+});
+
+test('admin dashboard displays protected metrics', async ({ page, request }) => {
+  const token = await getAdminToken(request);
+
+  await page.addInitScript((token) => {
+    localStorage.setItem('tagnote_token', token);
+  }, token);
+
+  await page.goto('/admin');
+  await expect(page.getByRole('heading', { name: 'Metrics' })).toBeVisible();
+  await expect(page.locator('#metrics-output')).toContainText('app_uptime_seconds');
 });
