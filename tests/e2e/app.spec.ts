@@ -13,6 +13,19 @@ async function createNote(page, content: string, tag: string) {
   await page.getByTestId('new-note-button').click();
   await expect(page.locator('#focus-overlay')).toBeVisible();
 
+  await setFocusEditorContent(page, content);
+  await page.locator('#focus-tag-input').fill(tag);
+  await page.keyboard.press('Enter');
+  await page.getByTestId('save-note-button').click();
+
+  await expect(page.locator('#focus-overlay')).toBeHidden();
+  const card = page.getByTestId('note-card').filter({ hasText: content });
+  await expect(card).toBeVisible();
+  return card;
+}
+
+async function setFocusEditorContent(page, content: string) {
+  await expect(page.locator('.CodeMirror')).toBeVisible();
   await page.evaluate((value) => {
     const codeMirror = (document.querySelector('.CodeMirror') as HTMLElement & {
       CodeMirror?: { setValue: (next: string) => void };
@@ -22,16 +35,11 @@ async function createNote(page, content: string, tag: string) {
       return;
     }
     const textarea = document.querySelector<HTMLTextAreaElement>('#focus-content');
-    if (textarea) textarea.value = value;
+    if (textarea) {
+      textarea.value = value;
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    }
   }, content);
-
-  await page.locator('#focus-tag-input').fill(tag);
-  await page.keyboard.press('Enter');
-  await page.getByTestId('save-note-button').click();
-
-  const card = page.getByTestId('note-card').filter({ hasText: content });
-  await expect(card).toBeVisible();
-  return card;
 }
 
 test('landing page and app shell load', async ({ page }) => {
@@ -81,6 +89,66 @@ test('guest mode can create a local note', async ({ page }) => {
   await expect(page.getByTestId('new-note-button')).toBeVisible();
 
   await createNote(page, content, tag);
+  await expect(page.getByTestId('note-card').filter({ hasText: content })).toBeVisible();
+});
+
+test('test user note creation autosaves and closes without discard warning', async ({ page }) => {
+  const suffix = Date.now().toString(36);
+  const content = `Autosaved E2E note ${suffix}`;
+  const tag = `autosave-${suffix}`;
+
+  await login(page);
+  await page.getByTestId('new-note-button').click();
+  await expect(page.locator('#focus-overlay')).toBeVisible();
+
+  await setFocusEditorContent(page, content);
+  await page.locator('#focus-tag-input').fill(tag);
+  await page.keyboard.press('Enter');
+
+  await expect(page.locator('#focus-save-status')).toHaveText('Saved');
+  await page.locator('#focus-close').click();
+  await expect(page.locator('#modal-overlay')).toBeHidden();
+  await expect(page.locator('#focus-overlay')).toBeHidden();
+  await expect(page.getByTestId('note-card').filter({ hasText: content })).toBeVisible();
+});
+
+test('test user note edits autosave without clicking save', async ({ page }) => {
+  const suffix = Date.now().toString(36);
+  const originalContent = `Autosave edit original ${suffix}`;
+  const editedContent = `Autosave edit updated ${suffix}`;
+  const tag = `autosave-edit-${suffix}`;
+
+  await login(page);
+  const card = await createNote(page, originalContent, tag);
+  await card.getByTestId('edit-note-button').click();
+  await expect(page.locator('#focus-overlay')).toBeVisible();
+
+  await setFocusEditorContent(page, editedContent);
+  await expect(page.locator('#focus-save-status')).toHaveText('Saved');
+  await page.locator('#focus-close').click();
+
+  await expect(page.locator('#focus-overlay')).toBeHidden();
+  await expect(page.getByTestId('note-card').filter({ hasText: editedContent })).toBeVisible();
+});
+
+test('guest mode note creation autosaves locally', async ({ page }) => {
+  const suffix = Date.now().toString(36);
+  const content = `Guest autosaved note ${suffix}`;
+  const tag = `guest-auto-${suffix}`;
+
+  await page.goto('/app');
+  await page.getByTestId('guest-mode-button').click();
+  await expect(page.getByTestId('new-note-button')).toBeVisible();
+
+  await page.getByTestId('new-note-button').click();
+  await expect(page.locator('#focus-overlay')).toBeVisible();
+  await setFocusEditorContent(page, content);
+  await page.locator('#focus-tag-input').fill(tag);
+  await page.keyboard.press('Enter');
+
+  await expect(page.locator('#focus-save-status')).toHaveText('Saved');
+  await page.locator('#focus-close').click();
+  await expect(page.locator('#focus-overlay')).toBeHidden();
   await expect(page.getByTestId('note-card').filter({ hasText: content })).toBeVisible();
 });
 

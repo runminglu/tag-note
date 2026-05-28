@@ -1266,21 +1266,100 @@ body {
 .focus-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 12px;
     margin-bottom: 12px;
     flex-shrink: 0;
+    min-width: 0;
 }
 
 .focus-title {
     font-size: 18px;
     font-weight: 600;
     color: var(--text);
+    flex-shrink: 0;
 }
 
 .focus-header-actions {
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.focus-save-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: min(260px, 34vw);
+    min-height: 28px;
+    padding: 4px 10px;
+    border: 1px solid var(--border-light);
+    border-radius: 999px;
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1;
+    margin-left: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: background var(--transition), border-color var(--transition), color var(--transition);
+}
+
+.focus-save-status:empty {
+    display: none;
+}
+
+.focus-save-status::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex: 0 0 auto;
+}
+
+.focus-save-status[data-status="saved"] {
+    background: color-mix(in srgb, var(--green) 12%, var(--bg-card));
+    border-color: color-mix(in srgb, var(--green) 28%, var(--border));
+    color: var(--green);
+}
+
+.focus-save-status[data-status="saved"]::before {
+    background: var(--green);
+}
+
+.focus-save-status[data-status="unsaved"],
+.focus-save-status[data-status="saving"] {
+    background: color-mix(in srgb, var(--mark-text) 12%, var(--bg-card));
+    border-color: color-mix(in srgb, var(--mark-text) 30%, var(--border));
+    color: var(--mark-text);
+}
+
+.focus-save-status[data-status="saving"]::before {
+    animation: statusPulse 1s ease-in-out infinite;
+}
+
+.focus-save-status[data-status="unsaved"]::before,
+.focus-save-status[data-status="saving"]::before {
+    background: var(--mark-text);
+}
+
+.focus-save-status[data-status="invalid"],
+.focus-save-status[data-status="failed"] {
+    background: color-mix(in srgb, var(--red) 10%, var(--bg-card));
+    border-color: color-mix(in srgb, var(--red) 28%, var(--border));
+    color: var(--red);
+}
+
+.focus-save-status[data-status="invalid"]::before,
+.focus-save-status[data-status="failed"]::before {
+    background: var(--red);
+}
+
+@keyframes statusPulse {
+    0%, 100% { opacity: 0.4; transform: scale(0.8); }
+    50% { opacity: 1; transform: scale(1.15); }
 }
 
 .focus-close {

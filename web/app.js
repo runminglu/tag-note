@@ -946,6 +946,10 @@ function createEasyMDE(textareaEl, opts) {
         setTimeout(() => cm.focus(), 100);
     }
 
+    if (textareaEl.id === 'focus-content') {
+        cm.on('change', scheduleFocusAutosave);
+    }
+
     return editor;
 }
 
@@ -2715,18 +2719,61 @@ function formatTime(dateStr) {
 // --- Focus Layout ---
 let focusMode = null; // null | 'create' | 'edit'
 let focusEditId = null;
-let focusInitialContent = '';
-let focusInitialTags = [];
+let focusLastSavedContent = '';
+let focusLastSavedTags = [];
+let focusAutosaveTimer = null;
+let focusAutosaveInFlight = null;
+let focusAutosaveQueued = false;
+let focusAutosaveStatus = 'idle';
+let focusNeedsRefresh = false;
+const FOCUS_AUTOSAVE_DELAY_MS = 1500;
+
+function sameTags(a, b) {
+    a = a || [];
+    b = b || [];
+    if (a.length !== b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) return false;
+    }
+    return true;
+}
+
+function getFocusDraft(options) {
+    options = options || {};
+    if (options.commitPendingTag && focusChips) {
+        focusChips.commitInput();
+    }
+    return {
+        content: focusEditor ? focusEditor.value().trim() : document.getElementById('focus-content').value.trim(),
+        tags: focusChips ? focusChips.getTags() : []
+    };
+}
+
+function focusDraftChangedFromLastSave(draft) {
+    return draft.content !== focusLastSavedContent || !sameTags(draft.tags, focusLastSavedTags);
+}
+
+function setFocusAutosaveStatus(status, message) {
+    focusAutosaveStatus = status;
+    var el = document.getElementById('focus-save-status');
+    if (!el) return;
+    el.textContent = message || '';
+    el.dataset.status = status;
+}
+
+function resetFocusAutosaveState(note) {
+    clearTimeout(focusAutosaveTimer);
+    focusAutosaveTimer = null;
+    focusAutosaveInFlight = null;
+    focusAutosaveQueued = false;
+    focusNeedsRefresh = false;
+    focusLastSavedContent = note ? (note.content || '').trim() : '';
+    focusLastSavedTags = note && note.tags ? note.tags.slice() : [];
+    setFocusAutosaveStatus(note ? 'saved' : 'idle', note ? 'Saved' : '');
+}
 
 function hasFocusChanges() {
-    var content = focusEditor ? focusEditor.value().trim() : document.getElementById('focus-content').value.trim();
-    var tags = focusChips ? focusChips.getTags() : [];
-    if (content !== focusInitialContent) return true;
-    if (tags.length !== focusInitialTags.length) return true;
-    for (var i = 0; i < tags.length; i++) {
-        if (tags[i] !== focusInitialTags[i]) return true;
-    }
-    return false;
+    return focusDraftChangedFromLastSave(getFocusDraft());
 }
 
 async function confirmCloseFocus() {
@@ -2734,8 +2781,96 @@ async function confirmCloseFocus() {
         closeFocus();
         return;
     }
+    if (focusAutosaveInFlight) {
+        try {
+            await focusAutosaveInFlight;
+            if (!hasFocusChanges()) {
+                closeFocus();
+                return;
+            }
+        } catch (_) {}
+    }
     var confirmed = await showModal({ message: 'You have unsaved changes. Discard them?', confirmText: 'Discard', danger: true });
     if (confirmed) closeFocus();
+}
+
+function scheduleFocusAutosave() {
+    if (!focusMode) return;
+    clearTimeout(focusAutosaveTimer);
+    focusAutosaveTimer = null;
+
+    var draft = getFocusDraft();
+    if (!focusDraftChangedFromLastSave(draft)) {
+        setFocusAutosaveStatus('saved', draft.content || draft.tags.length ? 'Saved' : '');
+        return;
+    }
+    if (!draft.content || draft.tags.length === 0) {
+        setFocusAutosaveStatus('invalid', 'Add content and a tag to autosave');
+        return;
+    }
+
+    setFocusAutosaveStatus('unsaved', 'Unsaved');
+    focusAutosaveTimer = setTimeout(function() {
+        flushFocusAutosave({ closeAfterSave: false, commitPendingTag: false }).catch(function() {});
+    }, FOCUS_AUTOSAVE_DELAY_MS);
+}
+
+async function flushFocusAutosave(options) {
+    options = options || {};
+    var draft = getFocusDraft({ commitPendingTag: options.commitPendingTag });
+    if (!draft.content || draft.tags.length === 0) {
+        setFocusAutosaveStatus('invalid', 'Add content and a tag to autosave');
+        throw new Error('Content and at least one tag are required.');
+    }
+    if (!focusDraftChangedFromLastSave(draft)) {
+        setFocusAutosaveStatus('saved', 'Saved');
+        if (options.closeAfterSave) closeFocus();
+        return;
+    }
+
+    if (focusAutosaveInFlight) {
+        focusAutosaveQueued = true;
+        await focusAutosaveInFlight;
+        if (options.closeAfterSave) {
+            return flushFocusAutosave(options);
+        }
+        return;
+    }
+
+    var savePromise = (async function() {
+        setFocusAutosaveStatus('saving', 'Saving...');
+        if (focusMode === 'edit' && focusEditId) {
+            await api('PUT', '/notes/' + encodeURIComponent(focusEditId), draft);
+        } else {
+            var created = await api('POST', '/notes', draft);
+            focusMode = 'edit';
+            focusEditId = created.short_id || created.id;
+            document.getElementById('focus-title').textContent = 'Edit note';
+            document.getElementById('focus-submit').textContent = 'Save note';
+        }
+        focusLastSavedContent = draft.content;
+        focusLastSavedTags = draft.tags.slice();
+        focusNeedsRefresh = true;
+        setFocusAutosaveStatus('saved', 'Saved');
+    })();
+
+    focusAutosaveInFlight = savePromise;
+    try {
+        await savePromise;
+    } catch (err) {
+        setFocusAutosaveStatus('failed', 'Save failed');
+        throw err;
+    } finally {
+        focusAutosaveInFlight = null;
+        if (focusAutosaveQueued && focusMode) {
+            focusAutosaveQueued = false;
+            if (focusDraftChangedFromLastSave(getFocusDraft())) {
+                await flushFocusAutosave({ closeAfterSave: false, commitPendingTag: false }).catch(function() {});
+            }
+        }
+    }
+
+    if (options.closeAfterSave) closeFocus();
 }
 
 function openFocus(mode, note) {
@@ -2745,17 +2880,14 @@ function openFocus(mode, note) {
     const overlay = document.getElementById('focus-overlay');
     const title = document.getElementById('focus-title');
     const submitBtn = document.getElementById('focus-submit');
-    const cancelBtn = document.getElementById('focus-cancel');
 
     if (mode === 'edit' && note) {
         title.textContent = 'Edit note';
         submitBtn.textContent = 'Save note';
-        cancelBtn.textContent = 'Cancel';
         focusChips.setTags(note.tags || []);
     } else {
         title.textContent = 'New note';
         submitBtn.textContent = 'Save note';
-        cancelBtn.textContent = 'Clear';
         focusChips.clearTags();
     }
 
@@ -2798,11 +2930,7 @@ function openFocus(mode, note) {
     // Update priority preview
     updateFocusPriorityPreview();
 
-    // Save initial state for dirty check
-    setTimeout(function() {
-        focusInitialContent = focusEditor ? focusEditor.value().trim() : document.getElementById('focus-content').value.trim();
-        focusInitialTags = focusChips ? focusChips.getTags().slice() : [];
-    }, 150);
+    resetFocusAutosaveState(mode === 'edit' && note ? note : null);
 }
 
 function updateFocusPriorityPreview() {
@@ -2828,9 +2956,15 @@ function updateFocusPriorityPreview() {
 function closeFocus() {
     const overlay = document.getElementById('focus-overlay');
     overlay.style.display = 'none';
+    clearTimeout(focusAutosaveTimer);
+    focusAutosaveTimer = null;
+    setFocusAutosaveStatus('idle', '');
+    var shouldRefresh = focusNeedsRefresh;
+    focusNeedsRefresh = false;
     focusMode = null;
     focusEditId = null;
     releaseFocus();
+    if (shouldRefresh) refresh();
 }
 
 // --- Read Overlay ---
@@ -2882,41 +3016,22 @@ document.getElementById('sidebar-new-note').addEventListener('click', () => {
     closeMobileSidebar();
 });
 
-// Focus close buttons
+// Focus close button
 document.getElementById('focus-close').addEventListener('click', confirmCloseFocus);
-document.getElementById('focus-cancel').addEventListener('click', () => {
-    if (focusMode === 'edit') {
-        confirmCloseFocus();
-    } else {
-        // In create mode, clear inputs but keep overlay open
-        if (focusEditor) {
-            focusEditor.value('');
-        } else {
-            document.getElementById('focus-content').value = '';
-        }
-        focusChips.clearTags();
-    }
-});
 
 // Focus submit
 document.getElementById('focus-submit').addEventListener('click', async () => {
-    const content = focusEditor ? focusEditor.value().trim() : document.getElementById('focus-content').value.trim();
-    focusChips.commitInput();
-    const tags = focusChips.getTags();
-    if (!content || tags.length === 0) {
+    clearTimeout(focusAutosaveTimer);
+    focusAutosaveTimer = null;
+    const draft = getFocusDraft({ commitPendingTag: true });
+    if (!draft.content || draft.tags.length === 0) {
         showToast('Content and at least one tag are required.', 'error');
         return;
     }
     const submitBtn = document.getElementById('focus-submit');
     submitBtn.classList.add('btn-loading');
     try {
-        if (focusMode === 'edit' && focusEditId) {
-            await api('PUT', '/notes/' + encodeURIComponent(focusEditId), { content, tags });
-        } else {
-            await api('POST', '/notes', { content, tags });
-        }
-        closeFocus();
-        refresh();
+        await flushFocusAutosave({ closeAfterSave: true, commitPendingTag: false });
     } catch (e) {
         showToast('Error: ' + e.message, 'error');
     } finally {
@@ -3482,8 +3597,11 @@ attachTagAutocomplete(document.getElementById('filter-tags'), function() { retur
 // Initialize chip inputs (must be after attachTagAutocomplete for correct keydown order)
 focusChips = initChipInput(
     document.getElementById('focus-chip-container'),
-    document.getElementById('focus-tag-input')
+    document.getElementById('focus-tag-input'),
+    { onChange: scheduleFocusAutosave }
 );
+
+document.getElementById('focus-content').addEventListener('input', scheduleFocusAutosave);
 
 filterChips = initChipInput(
     document.getElementById('filter-chip-container'),
