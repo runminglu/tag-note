@@ -15,18 +15,7 @@ struct NotesView: View {
                 }
 
                 if viewModel.notes.isEmpty && !viewModel.isLoading {
-                    VStack(spacing: 10) {
-                        Image(systemName: "doc.text.magnifyingglass")
-                            .font(.system(size: 34, weight: .semibold))
-                        Text("No notes")
-                            .font(.headline)
-                        Text("Create a note or adjust your filters.")
-                            .font(.subheadline)
-                            .foregroundStyle(appState.palette.secondaryText)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 56)
-                    .foregroundStyle(appState.palette.secondaryText)
+                    emptyState
                 }
 
                 ForEach(viewModel.notes) { note in
@@ -90,6 +79,43 @@ struct NotesView: View {
         }
     }
 
+    private var hasActiveFilters: Bool {
+        !viewModel.selectedTags.isEmpty || !viewModel.query.isEmpty
+    }
+
+    @ViewBuilder
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            if hasActiveFilters {
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .font(.system(size: 34, weight: .semibold))
+                Text("No notes match the selected tags.")
+                    .font(.subheadline)
+                    .multilineTextAlignment(.center)
+            } else {
+                Image(systemName: "square.and.pencil")
+                    .font(.system(size: 34, weight: .semibold))
+                Text("Write your first note.")
+                    .font(.headline)
+                    .foregroundStyle(appState.palette.text)
+                Button {
+                    activeSheet = .create
+                } label: {
+                    Label("New note", systemImage: "plus")
+                        .font(.system(size: 15, weight: .semibold))
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(appState.palette.accent)
+                .accessibilityIdentifier("empty-new-note")
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 32)
+        .padding(.vertical, 56)
+        .foregroundStyle(appState.palette.secondaryText)
+        .accessibilityIdentifier("notes-empty-state")
+    }
+
     private func presentCreateIfRequested() {
         guard viewModel.isCreateRequested else { return }
         viewModel.consumeCreateRequest()
@@ -140,7 +166,7 @@ private struct ActiveFiltersBar: View {
             if !viewModel.selectedTags.isEmpty {
                 FlowLayout(spacing: 8, rowSpacing: 8) {
                     ForEach(viewModel.selectedTags, id: \.self) { tag in
-                        TagChip(tag, isActive: true) {
+                        TagChip(tag, isActive: true, tagInfo: viewModel.availableTags.first { $0.name == tag }) {
                             Task { await viewModel.toggleTagFilter(tag) }
                         }
                     }
@@ -181,16 +207,30 @@ struct NoteCard: View {
 
                 FlowLayout(spacing: 6, rowSpacing: 6) {
                     ForEach(note.tags, id: \.self) { tag in
-                        TagChip(tag) { onTagTap(tag) }
+                        TagChip(tag, tagInfo: availableTags.first { $0.name == tag }) { onTagTap(tag) }
                     }
                 }
 
                 Spacer(minLength: 0)
+
+                if let priority = priorityStyle {
+                    Text(priority.label)
+                        .font(.system(size: 11, weight: .bold))
+                        .textCase(.uppercase)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .foregroundStyle(priority.text)
+                        .background(priority.wash)
+                        .overlay(Capsule().stroke(priority.border, lineWidth: 1))
+                        .clipShape(Capsule())
+                        .accessibilityLabel("Priority: \(priority.label)")
+                }
             }
 
             HStack(alignment: .center) {
-                Text(note.displayDate, format: .dateTime.month(.abbreviated).day().hour().minute())
+                Text(RelativeTime.format(note.displayDate))
                     .font(.system(size: 13, weight: .semibold))
+                    .monospacedDigit()
                     .foregroundStyle(appState.palette.secondaryText)
                     .lineLimit(1)
 
@@ -234,17 +274,38 @@ struct NoteCard: View {
                 }
                 .font(.system(size: 13, weight: .bold))
                 .buttonStyle(.plain)
-                .foregroundStyle(Color(hex: 0x83C5BE))
+                .foregroundStyle(appState.palette.info)
             }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(cardBackground)
+        .background(priorityStyle?.wash ?? appState.palette.card)
         .overlay(
             Rectangle()
-                .stroke(note.pinned ? appState.palette.accent : appState.palette.border, lineWidth: note.pinned ? 2 : 1)
+                .stroke(appState.palette.border, lineWidth: 1)
         )
+        .overlay(alignment: .leading) {
+            // Important/urgent priority is encoded on the left edge (ux_guidelines §11).
+            if let priority = priorityStyle {
+                Rectangle()
+                    .fill(priority.border)
+                    .frame(width: 3)
+            }
+        }
+        .overlay(alignment: .top) {
+            // Pinned notes carry a 2px accent top edge (ux_guidelines §11).
+            if note.pinned {
+                Rectangle()
+                    .fill(appState.palette.accent)
+                    .frame(height: 2)
+            }
+        }
+    }
+
+    private var priorityStyle: PriorityStyle? {
+        guard let peak = TagPriority.peak(for: note.tags, in: availableTags) else { return nil }
+        return TagPriority.cardStyle(importance: peak.importance, urgency: peak.urgency, isDark: appState.palette.isDark)
     }
 
     private var previewText: String {
@@ -281,20 +342,6 @@ struct NoteCard: View {
     private var isLongPreview: Bool {
         previewText.count > 260 || previewText.components(separatedBy: .newlines).count > 7
     }
-
-    private var cardBackground: Color {
-        guard let first = note.tags.first,
-              let tag = availableTags.first(where: { $0.name == first }) else {
-            return appState.palette.card
-        }
-        if tag.importance >= 70 && tag.urgency >= 70 {
-            return Color(hex: 0x5F351A)
-        }
-        if tag.importance >= 70 || tag.urgency >= 70 {
-            return Color(hex: 0x4A5A13)
-        }
-        return appState.palette.card
-    }
 }
 
 private struct CardIconButton: View {
@@ -322,11 +369,13 @@ struct TagChip: View {
     @EnvironmentObject private var appState: AppState
     let label: String
     var isActive = false
+    var tagInfo: TagInfo?
     var action: (() -> Void)?
 
-    init(_ label: String, isActive: Bool = false, action: (() -> Void)? = nil) {
+    init(_ label: String, isActive: Bool = false, tagInfo: TagInfo? = nil, action: (() -> Void)? = nil) {
         self.label = label
         self.isActive = isActive
+        self.tagInfo = tagInfo
         self.action = action
     }
 
@@ -339,11 +388,29 @@ struct TagChip: View {
                 .lineLimit(1)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
-                .foregroundStyle(isActive ? appState.palette.text : appState.palette.secondaryText)
-                .background(isActive ? Color(hex: 0x4F5F20) : appState.palette.tagBackground)
+                .foregroundStyle(foregroundColor)
+                .background(backgroundColor)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
+    }
+
+    // Chips are colored by their tag's Importance × Urgency when known (ux_guidelines §12).
+    private var pill: (background: Color, text: Color)? {
+        guard let info = tagInfo else { return nil }
+        return TagPriority.pillStyle(importance: info.importance, urgency: info.urgency, isActive: isActive, isDark: appState.palette.isDark)
+    }
+
+    private var backgroundColor: Color {
+        if let pill { return pill.background }
+        if isActive { return appState.palette.accent }
+        return appState.palette.tagBackground
+    }
+
+    private var foregroundColor: Color {
+        if let pill { return pill.text }
+        if isActive { return appState.palette.card }
+        return appState.palette.secondaryText
     }
 }
 

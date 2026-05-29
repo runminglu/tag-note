@@ -8,13 +8,13 @@ struct TrashView: View {
         NavigationStack {
             List {
                 if viewModel.notes.isEmpty && !viewModel.isLoading {
-                    ContentUnavailableView("Trash is empty", systemImage: "trash", description: Text("Deleted notes appear here."))
+                    ContentUnavailableView("Nothing deleted yet.", systemImage: "trash", description: Text("Deleted notes appear here and can be restored."))
                         .listRowBackground(appState.palette.background)
                 }
 
                 ForEach(viewModel.notes) { note in
                     NoteCard(note: note) { _ in }
-                        .opacity(0.78)
+                        .opacity(0.75)
                         .swipeActions(edge: .leading) {
                             Button {
                                 Task { await viewModel.restore(note) }

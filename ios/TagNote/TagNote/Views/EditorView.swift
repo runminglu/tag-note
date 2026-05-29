@@ -55,14 +55,11 @@ struct EditorView: View {
                     }
                 }
                 ToolbarItem(placement: .principal) {
-                    VStack(spacing: 1) {
+                    VStack(spacing: 3) {
                         Text(viewModel.isNewNote ? "New note" : "Edit note")
                             .font(.headline)
-                        if !viewModel.saveStatus.label.isEmpty {
-                            Text(viewModel.saveStatus.label)
-                                .font(.caption2)
-                                .foregroundStyle(statusColor)
-                        }
+                        SaveStatusPill(status: viewModel.saveStatus)
+                            .environmentObject(appState)
                     }
                 }
                 ToolbarItem {
@@ -149,6 +146,11 @@ struct EditorView: View {
                     .autocorrectionDisabled()
                     .onSubmit(commitTagDraft)
                     .onChange(of: tagDraft) { _, value in
+                        // Commit on space, comma, or enter — matches the web chip input (ux_guidelines §12).
+                        if let last = value.last, last == " " || last == "," || last == "\n" {
+                            commitTagDraft()
+                            return
+                        }
                         Task { await viewModel.autocomplete(value) }
                     }
                     .accessibilityIdentifier("tag-input-field")
@@ -165,9 +167,14 @@ struct EditorView: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(appState.palette.border))
 
-            if !viewModel.suggestions.isEmpty && !tagDraft.isEmpty {
+            if !tagDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack {
+                    HStack(spacing: 6) {
+                        if showGhostChip {
+                            GhostTagChip(label: normalizedDraft) {
+                                commitTagDraft()
+                            }
+                        }
                         ForEach(viewModel.suggestions, id: \.self) { suggestion in
                             TagChip(suggestion) {
                                 viewModel.addTag(suggestion)
@@ -178,6 +185,17 @@ struct EditorView: View {
                 }
             }
         }
+    }
+
+    private var normalizedDraft: String {
+        tagDraft.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    // A ghost chip lets the author create a tag that doesn't exist yet (ux_guidelines §12).
+    private var showGhostChip: Bool {
+        !normalizedDraft.isEmpty
+            && !viewModel.tags.contains(normalizedDraft)
+            && !viewModel.suggestions.contains { $0.lowercased() == normalizedDraft }
     }
 
     private var formattingBar: some View {
@@ -202,17 +220,6 @@ struct EditorView: View {
     private var markdownPreview: some View {
         MarkdownPreviewView(document: .parse(viewModel.content))
             .environmentObject(appState)
-    }
-
-    private var statusColor: Color {
-        switch viewModel.saveStatus {
-        case .failed, .invalid:
-            return appState.palette.destructive
-        case .saved:
-            return appState.palette.accent
-        default:
-            return appState.palette.secondaryText
-        }
     }
 
     private func formatButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
@@ -253,6 +260,111 @@ struct EditorView: View {
         }
         await viewModel.uploadImage(data: data, mimeType: "image/jpeg")
         selectedPhoto = nil
+    }
+}
+
+/// Save-status indicator with the five canonical states, each carrying a color
+/// *and* an icon/label so meaning never relies on color alone (ux_guidelines §16, §27).
+private struct SaveStatusPill: View {
+    @EnvironmentObject private var appState: AppState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let status: SaveStatus
+    @State private var pulse = false
+
+    var body: some View {
+        if status == .idle {
+            EmptyView()
+        } else {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .bold))
+                    .opacity(isSaving && pulse ? 0.4 : 1)
+                    .scaleEffect(isSaving && pulse ? 0.82 : 1)
+                Text(label)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(color)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.12))
+            .overlay(Capsule().stroke(color.opacity(0.32), lineWidth: 1))
+            .clipShape(Capsule())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Save status: \(label)")
+            .onAppear { updatePulse() }
+            .onChange(of: status) { _, _ in updatePulse() }
+        }
+    }
+
+    private var isSaving: Bool { status == .saving }
+
+    private func updatePulse() {
+        guard isSaving, !reduceMotion else {
+            pulse = false
+            return
+        }
+        withAnimation(.easeInOut(duration: 1).repeatForever(autoreverses: true)) {
+            pulse = true
+        }
+    }
+
+    private var label: String {
+        switch status {
+        case .unsaved: return "Unsaved"
+        case .saving: return "Saving…"
+        case .saved: return "Saved"
+        case .invalid: return "Invalid"
+        case .failed: return "Failed"
+        case .idle: return ""
+        }
+    }
+
+    private var icon: String {
+        switch status {
+        case .unsaved: return "pencil"
+        case .saving: return "arrow.triangle.2.circlepath"
+        case .saved: return "checkmark"
+        case .invalid: return "exclamationmark.triangle"
+        case .failed: return "wifi.slash"
+        case .idle: return ""
+        }
+    }
+
+    private var color: Color {
+        switch status {
+        case .unsaved, .saving: return appState.palette.warning
+        case .saved: return appState.palette.success
+        case .invalid, .failed: return appState.palette.destructive
+        case .idle: return appState.palette.secondaryText
+        }
+    }
+}
+
+/// Dashed "create" chip for a tag that does not exist yet (ux_guidelines §12).
+private struct GhostTagChip: View {
+    @EnvironmentObject private var appState: AppState
+    let label: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: "plus")
+                Text("#\(label)")
+            }
+            .font(.system(size: 15, weight: .semibold))
+            .lineLimit(1)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .foregroundStyle(appState.palette.secondaryText)
+            .overlay(
+                Capsule().stroke(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    .foregroundStyle(appState.palette.border)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Create tag \(label)")
     }
 }
 

@@ -105,9 +105,17 @@ struct TagManagementRow: View {
                         Text(tag.name)
                             .font(.headline)
                             .foregroundStyle(appState.palette.text)
-                        Text("\(tag.noteCount) notes · \(tag.status)")
-                            .font(.caption)
-                            .foregroundStyle(appState.palette.secondaryText)
+                        HStack(spacing: 6) {
+                            Text("\(tag.noteCount) \(tag.noteCount == 1 ? "note" : "notes")")
+                                .foregroundStyle(appState.palette.secondaryText)
+                            Text("·")
+                                .foregroundStyle(appState.palette.secondaryText)
+                            Text(tag.isUnreviewed ? "unreviewed" : "approved")
+                                .fontWeight(.semibold)
+                                .foregroundStyle(tag.isUnreviewed ? appState.palette.warning : appState.palette.success)
+                        }
+                        .font(.caption)
+                        .monospacedDigit()
                     }
                     Spacer()
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
@@ -118,8 +126,8 @@ struct TagManagementRow: View {
 
             if isExpanded {
                 VStack(alignment: .leading) {
-                    labeledSlider("Importance", value: $importance)
-                    labeledSlider("Urgency", value: $urgency)
+                    labeledSlider("Importance", value: $importance, tint: appState.palette.success)
+                    labeledSlider("Urgency", value: $urgency, tint: appState.palette.warning)
                     HStack {
                         if tag.isUnreviewed {
                             Button("Approve", action: approve)
@@ -142,22 +150,24 @@ struct TagManagementRow: View {
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(appState.palette.border))
     }
 
+    // Use the shared themed priority hue so the dot matches note-card edges (ux_guidelines §18).
     private var priorityColor: Color {
-        if importance >= 70 && urgency >= 70 { return appState.palette.destructive }
-        if importance >= 70 || urgency >= 70 { return .orange }
-        return appState.palette.accent
+        TagPriority.cardStyle(importance: Int(importance), urgency: Int(urgency), isDark: appState.palette.isDark)?.border
+            ?? appState.palette.secondaryText
     }
 
-    private func labeledSlider(_ title: String, value: Binding<Double>) -> some View {
+    private func labeledSlider(_ title: String, value: Binding<Double>, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(title)
                 Spacer()
                 Text("\(Int(value.wrappedValue))")
+                    .monospacedDigit()
                     .foregroundStyle(appState.palette.secondaryText)
             }
             .font(.caption)
             Slider(value: value, in: 0...100, step: 1)
+                .tint(tint)
         }
     }
 

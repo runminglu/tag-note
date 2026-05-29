@@ -190,6 +190,10 @@ private struct SidebarView: View {
     @State private var searchTask: Task<Void, Never>?
     @State private var tagFilterTask: Task<Void, Never>?
 
+    private var unreviewedTagCount: Int {
+        notesViewModel.availableTags.filter(\.isUnreviewed).count
+    }
+
     private var visibleTags: [TagInfo] {
         let q = tagSearch.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return notesViewModel.availableTags }
@@ -252,15 +256,17 @@ private struct SidebarView: View {
                             HStack(spacing: 18) {
                                 Image(systemName: section.icon)
                                 Text(section.title)
-                                if section == .tags, !notesViewModel.availableTags.isEmpty {
+                                if section == .tags, unreviewedTagCount > 0 {
                                     Spacer()
-                                    Text("\(notesViewModel.availableTags.count)")
+                                    Text("\(unreviewedTagCount)")
                                         .font(.system(size: 15, weight: .bold))
+                                        .monospacedDigit()
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 7)
-                                        .foregroundStyle(Color.white)
-                                        .background(appState.palette.destructive)
+                                        .foregroundStyle(appState.palette.card)
+                                        .background(appState.palette.warning)
                                         .clipShape(Capsule())
+                                        .accessibilityLabel("\(unreviewedTagCount) unreviewed tags")
                                 }
                             }
                         }
@@ -376,8 +382,10 @@ private struct SidebarView: View {
                 .padding(.vertical, 16)
             }
         }
-        .background(TagNoteNativeColors.sidebar)
-        .ignoresSafeArea(edges: .vertical)
+        // Let the panel surface bleed behind the status bar / home indicator,
+        // but keep the header and nav content inside the safe area so the
+        // wordmark never collides with the clock or Dynamic Island.
+        .background(appState.palette.card.ignoresSafeArea())
         .task {
             await tagsViewModel.loadCached()
             await tagsViewModel.refresh()
@@ -496,7 +504,7 @@ private struct FlexibleChipGrid: View {
     var body: some View {
         FlowLayout(spacing: 6, rowSpacing: 6) {
             ForEach(tags) { tag in
-                TagChip(tag.name, isActive: selectedTags.contains(tag.name)) {
+                TagChip(tag.name, isActive: selectedTags.contains(tag.name), tagInfo: tag) {
                     onTap(tag)
                 }
             }
@@ -527,7 +535,3 @@ private struct SidebarNavModifier: ViewModifier {
     }
 }
 
-enum TagNoteNativeColors {
-    static let header = Color(hex: 0x2D353B)
-    static let sidebar = Color(hex: 0x272E33)
-}
