@@ -6,48 +6,33 @@ struct NotesView: View {
     @State private var activeSheet: NotesSheet?
 
     var body: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                if !viewModel.selectedTags.isEmpty || !viewModel.query.isEmpty {
-                    ActiveFiltersBar(viewModel: viewModel)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 16)
-                }
-
-                if viewModel.notes.isEmpty && !viewModel.isLoading {
-                    emptyState
-                }
-
-                ForEach(viewModel.notes) { note in
-                    NoteCard(
-                        note: note,
-                        availableTags: viewModel.availableTags,
-                        onTagTap: { tag in
-                            Task { await viewModel.toggleTagFilter(tag) }
-                        },
-                        onExpand: {
-                            activeSheet = .edit(note)
-                        },
-                        onEdit: {
-                            activeSheet = .edit(note)
-                        },
-                        onDelete: {
-                            Task { await viewModel.delete(note) }
-                        },
-                        onPin: {
-                            Task { await viewModel.togglePin(note) }
-                        }
-                    )
-                    .accessibilityIdentifier("note-card-\(note.routeID)")
-                    .onAppear {
-                        Task { await viewModel.loadMoreIfNeeded(current: note) }
+        GeometryReader { geometry in
+            let columns = columnCount(for: geometry.size.width)
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    if !viewModel.selectedTags.isEmpty || !viewModel.query.isEmpty {
+                        ActiveFiltersBar(viewModel: viewModel)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 16)
                     }
-                }
 
-                if viewModel.isLoadingMore {
-                    ProgressView()
-                        .tint(appState.palette.accent)
-                        .padding(.vertical, 18)
+                    if viewModel.notes.isEmpty && !viewModel.isLoading {
+                        emptyState
+                    } else if columns > 1 {
+                        // Dense multi-column masonry on wide screens, like the web feed.
+                        masonryFeed(columns: columns)
+                            .padding(16)
+                    } else {
+                        ForEach(viewModel.notes) { note in
+                            noteCard(note, cornerRadius: 0)
+                        }
+                    }
+
+                    if viewModel.isLoadingMore {
+                        ProgressView()
+                            .tint(appState.palette.accent)
+                            .padding(.vertical, 18)
+                    }
                 }
             }
         }
@@ -81,6 +66,62 @@ struct NotesView: View {
 
     private var hasActiveFilters: Bool {
         !viewModel.selectedTags.isEmpty || !viewModel.query.isEmpty
+    }
+
+    // Feed columns scale with available width (ux_guidelines §9): 1 on a phone,
+    // 2–5 as the window grows on iPad / large split view.
+    private func columnCount(for width: CGFloat) -> Int {
+        let minColumnWidth: CGFloat = 320
+        let spacing: CGFloat = 16
+        let usable = width - 32 // outer feed padding
+        guard usable > minColumnWidth else { return 1 }
+        let count = Int((usable + spacing) / (minColumnWidth + spacing))
+        return max(1, min(5, count))
+    }
+
+    // Index round-robin keeps the newest-first reading order left-to-right while
+    // letting columns settle to ragged (masonry) bottoms.
+    @ViewBuilder
+    private func masonryFeed(columns: Int) -> some View {
+        HStack(alignment: .top, spacing: 16) {
+            ForEach(0..<columns, id: \.self) { column in
+                LazyVStack(spacing: 16) {
+                    ForEach(Array(viewModel.notes.enumerated()), id: \.element.id) { index, note in
+                        if index % columns == column {
+                            noteCard(note, cornerRadius: 8)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func noteCard(_ note: SubNote, cornerRadius: CGFloat) -> some View {
+        NoteCard(
+            note: note,
+            availableTags: viewModel.availableTags,
+            cornerRadius: cornerRadius,
+            onTagTap: { tag in
+                Task { await viewModel.toggleTagFilter(tag) }
+            },
+            onExpand: {
+                activeSheet = .edit(note)
+            },
+            onEdit: {
+                activeSheet = .edit(note)
+            },
+            onDelete: {
+                Task { await viewModel.delete(note) }
+            },
+            onPin: {
+                Task { await viewModel.togglePin(note) }
+            }
+        )
+        .accessibilityIdentifier("note-card-\(note.routeID)")
+        .onAppear {
+            Task { await viewModel.loadMoreIfNeeded(current: note) }
+        }
     }
 
     @ViewBuilder
@@ -185,6 +226,8 @@ struct NoteCard: View {
     @EnvironmentObject private var appState: AppState
     let note: SubNote
     var availableTags: [TagInfo] = []
+    // Edge-to-edge (0) for the phone list; rounded (8) for the multi-column masonry feed.
+    var cornerRadius: CGFloat = 0
     let onTagTap: (String) -> Void
     var onExpand: (() -> Void)?
     var onEdit: (() -> Void)?
@@ -281,10 +324,6 @@ struct NoteCard: View {
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(priorityStyle?.wash ?? appState.palette.card)
-        .overlay(
-            Rectangle()
-                .stroke(appState.palette.border, lineWidth: 1)
-        )
         .overlay(alignment: .leading) {
             // Important/urgent priority is encoded on the left edge (ux_guidelines §11).
             if let priority = priorityStyle {
@@ -301,6 +340,11 @@ struct NoteCard: View {
                     .frame(height: 2)
             }
         }
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .stroke(appState.palette.border, lineWidth: 1)
+        )
     }
 
     private var priorityStyle: PriorityStyle? {

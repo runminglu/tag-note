@@ -10,6 +10,7 @@ struct MainTabView: View {
 
 private struct WebStyleAppShell: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     let api: TagNoteAPI
     let cache: LocalCache
     @StateObject private var notesViewModel: NotesViewModel
@@ -28,7 +29,64 @@ private struct WebStyleAppShell: View {
         _trashViewModel = StateObject(wrappedValue: TrashViewModel(api: api))
     }
 
+    // Adapt by available width (ux_guidelines §9): a persistent sidebar + dense
+    // feed when the screen is regular-width (iPad full screen, large split view),
+    // the slide-over drawer when compact (phone, narrow split view).
+    private var usesPersistentSidebar: Bool {
+        horizontalSizeClass == .regular
+    }
+
     var body: some View {
+        Group {
+            if usesPersistentSidebar {
+                regularLayout
+            } else {
+                compactLayout
+            }
+        }
+        .task {
+            await notesViewModel.loadCached()
+            await notesViewModel.refresh()
+            if shouldAutoOpenEditor {
+                didAutoOpenEditor = true
+                activeEditorSheet = .create
+            }
+        }
+        .sheet(item: $activeEditorSheet, onDismiss: { Task { await notesViewModel.refresh() } }) { sheet in
+            switch sheet {
+            case .create:
+                EditorView(viewModel: EditorViewModel(note: nil, api: api))
+                    .environmentObject(appState)
+            }
+        }
+    }
+
+    // Desktop-like split: fixed sidebar rail + the active surface fills the rest.
+    private var regularLayout: some View {
+        HStack(spacing: 0) {
+            SidebarView(
+                selection: $selection,
+                isOpen: .constant(true),
+                isPersistent: true,
+                notesViewModel: notesViewModel,
+                tagsViewModel: tagsViewModel,
+                createNote: { activeEditorSheet = .create }
+            )
+            .frame(width: 280)
+
+            Rectangle()
+                .fill(appState.palette.border)
+                .frame(width: 1)
+                .ignoresSafeArea()
+
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .background(appState.palette.background.ignoresSafeArea())
+    }
+
+    // Phone: header + slide-over drawer.
+    private var compactLayout: some View {
         GeometryReader { geometry in
             let sidebarWidth = min(geometry.size.width * 0.72, 280)
             ZStack(alignment: .leading) {
@@ -59,6 +117,7 @@ private struct WebStyleAppShell: View {
                 SidebarView(
                     selection: $selection,
                     isOpen: $isSidebarOpen,
+                    isPersistent: false,
                     notesViewModel: notesViewModel,
                     tagsViewModel: tagsViewModel,
                     createNote: {
@@ -69,21 +128,6 @@ private struct WebStyleAppShell: View {
                 .offset(x: isSidebarOpen ? 0 : -sidebarWidth)
                 .animation(.easeInOut(duration: 0.22), value: isSidebarOpen)
                 .shadow(color: .black.opacity(isSidebarOpen ? 0.28 : 0), radius: 18, x: 4, y: 0)
-            }
-        }
-        .task {
-            await notesViewModel.loadCached()
-            await notesViewModel.refresh()
-            if shouldAutoOpenEditor {
-                didAutoOpenEditor = true
-                activeEditorSheet = .create
-            }
-        }
-        .sheet(item: $activeEditorSheet, onDismiss: { Task { await notesViewModel.refresh() } }) { sheet in
-            switch sheet {
-            case .create:
-                EditorView(viewModel: EditorViewModel(note: nil, api: api))
-                    .environmentObject(appState)
             }
         }
     }
@@ -182,6 +226,7 @@ private struct SidebarView: View {
     @EnvironmentObject private var session: SessionStore
     @Binding var selection: AppSection
     @Binding var isOpen: Bool
+    var isPersistent = false
     @ObservedObject var notesViewModel: NotesViewModel
     @ObservedObject var tagsViewModel: TagsViewModel
     let createNote: () -> Void
@@ -400,6 +445,7 @@ private struct SidebarView: View {
     }
 
     private func close() {
+        guard !isPersistent else { return }
         withAnimation(.easeInOut(duration: 0.22)) {
             isOpen = false
         }
