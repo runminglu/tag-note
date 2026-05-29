@@ -169,5 +169,31 @@ When asked to release `vX.Y.Z`:
 | `web/app.js` | Main SPA behavior. |
 | `web/style.css` | App and landing page styles. |
 | `web/index.html` | App HTML shell. |
+| `web/landing.html` | Marketing site shell (self-contained). |
+| `design_docs/` | Design and UX reference docs (see below). |
 | `monitoring/` | Grafana and VictoriaMetrics configuration. |
 | `release/` | Build, deploy, rollback, and status scripts. |
+
+## Design & UX References
+
+Before changing any TagNote UI — web app, marketing site, iOS app, or any
+future client — read:
+
+- [`design_docs/ux_guidelines.md`](design_docs/ux_guidelines.md) —
+  cross-platform UX guidelines. Leads with a short Principles section
+  (tag-first; four concepts; speed; calm/loud color; adapt don't
+  duplicate; one product one feel; themed never hardcoded; trust; tone;
+  a11y + offline). Then covers the surface model, adaptive behavior across
+  phone/tablet/desktop/TV, cross-platform consistency rules, IA, the card
+  model, the Focus authoring surface and save-status states, tag chips,
+  the Importance × Urgency priority model, manage/trash/settings, auth
+  paths, modals, toasts, buttons, forms, the 8-theme system, typography,
+  iconography, input methods (pointer / touch / keyboard / D-pad / screen
+  reader), the sanctioned animation budget, empty/loading/error states,
+  offline/PWA posture, privacy, and the marketing-site section order.
+
+Other design notes in `design_docs/`:
+
+- `design_docs/autosave_notes.md` — autosave contract behind the
+  save-status indicator.
+- `design_docs/ios_app_design.md` — companion iOS app direction.
