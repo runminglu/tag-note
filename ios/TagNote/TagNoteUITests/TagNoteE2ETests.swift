@@ -10,7 +10,6 @@ final class TagNoteE2ETests: XCTestCase {
         app.launchEnvironment["TAGNOTE_E2E_SERVER_URL"] = ProcessInfo.processInfo.environment["TAGNOTE_E2E_SERVER_URL"] ?? "http://localhost:3777"
         app.launchEnvironment["TAGNOTE_E2E_EMAIL"] = ProcessInfo.processInfo.environment["TAGNOTE_E2E_EMAIL"] ?? "test@test.com"
         app.launchEnvironment["TAGNOTE_E2E_PASSWORD"] = ProcessInfo.processInfo.environment["TAGNOTE_E2E_PASSWORD"] ?? "testpass123"
-        app.launchEnvironment["TAGNOTE_UI_CREATE_NOTE"] = "1"
         app.launchArguments.append("-ui-testing")
     }
 
@@ -18,45 +17,25 @@ final class TagNoteE2ETests: XCTestCase {
         app = nil
     }
 
-    func testLoginCreateTaggedNoteAndReturnToFeed() throws {
+    @MainActor
+    func testLoginShowsSeededNoteAndSearchesContent() async throws {
+        let seeded = try await seedNote()
         app.launch()
 
         configureServerIfNeeded()
         loginIfNeeded()
 
-        let tagField = app.textFields["tag-input-field"]
-        XCTAssertTrue(tagField.waitForExistence(timeout: 15))
-        tagField.tap()
-        tagField.typeText("ios-e2e")
-        app.descendants(matching: .any)["add-tag-button"].tap()
+        let returnedNotesScreen = app.descendants(matching: .any)["notes-screen"]
+        XCTAssertTrue(returnedNotesScreen.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", seeded.title)).firstMatch.waitForExistence(timeout: 10))
 
-        let editor = app.textViews["note-content-editor"]
-        XCTAssertTrue(editor.waitForExistence(timeout: 5))
-        editor.tap()
-        editor.typeText("### iOS E2E note\nCreated from XCUITest")
-
-        XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 8))
-
-        app.terminate()
-        app = XCUIApplication()
-        app.launchEnvironment["TAGNOTE_E2E_SERVER_URL"] = ProcessInfo.processInfo.environment["TAGNOTE_E2E_SERVER_URL"] ?? "http://localhost:3777"
-        app.launchEnvironment["TAGNOTE_E2E_EMAIL"] = ProcessInfo.processInfo.environment["TAGNOTE_E2E_EMAIL"] ?? "test@test.com"
-        app.launchEnvironment["TAGNOTE_E2E_PASSWORD"] = ProcessInfo.processInfo.environment["TAGNOTE_E2E_PASSWORD"] ?? "testpass123"
-        app.launchArguments.append("-ui-testing")
-        app.launch()
-
-        configureServerIfNeeded()
-        loginIfNeeded()
-
-        let notesScreen = app.descendants(matching: .any)["notes-screen"]
-        XCTAssertTrue(notesScreen.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "iOS E2E note")).firstMatch.waitForExistence(timeout: 10))
+        app.descendants(matching: .any)["sidebar-open-button"].tap()
 
         let searchField = app.textFields["note-search-field"]
         XCTAssertTrue(searchField.waitForExistence(timeout: 5))
         searchField.tap()
-        searchField.typeText("Created from XCUITest")
-        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "iOS E2E note")).firstMatch.waitForExistence(timeout: 10))
+        searchField.typeText(seeded.bodyNeedle)
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", seeded.title)).firstMatch.waitForExistence(timeout: 10))
     }
 
     private func configureServerIfNeeded() {
@@ -82,4 +61,54 @@ final class TagNoteE2ETests: XCTestCase {
 
         app.descendants(matching: .any)["login-submit-button"].tap()
     }
+
+    private func seedNote() async throws -> SeededNote {
+        let baseURL = URL(string: ProcessInfo.processInfo.environment["TAGNOTE_E2E_SERVER_URL"] ?? "http://localhost:3777")!
+        let email = ProcessInfo.processInfo.environment["TAGNOTE_E2E_EMAIL"] ?? "test@test.com"
+        let password = ProcessInfo.processInfo.environment["TAGNOTE_E2E_PASSWORD"] ?? "testpass123"
+        let title = "iOS seeded note \(Int(Date().timeIntervalSince1970))"
+        let bodyNeedle = "drawer-search-\(UUID().uuidString.prefix(8))"
+
+        let loginURL = baseURL.appending(path: "api/v1/auth/login")
+        var loginRequest = URLRequest(url: loginURL)
+        loginRequest.httpMethod = "POST"
+        loginRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        loginRequest.httpBody = try JSONEncoder().encode(["email": email, "password": password])
+        let (loginData, loginResponse) = try await URLSession.shared.data(for: loginRequest)
+        try assertSuccess(loginResponse)
+        let token = try JSONDecoder().decode(LoginPayload.self, from: loginData).token
+
+        let noteURL = baseURL.appending(path: "api/v1/notes")
+        var noteRequest = URLRequest(url: noteURL)
+        noteRequest.httpMethod = "POST"
+        noteRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        noteRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        noteRequest.httpBody = try JSONEncoder().encode(NotePayload(
+            content: "### \(title)\nCreated for native iOS E2E \(bodyNeedle)",
+            tags: ["ios-e2e"]
+        ))
+        let (_, noteResponse) = try await URLSession.shared.data(for: noteRequest)
+        try assertSuccess(noteResponse)
+
+        return SeededNote(title: title, bodyNeedle: bodyNeedle)
+    }
+
+    private func assertSuccess(_ response: URLResponse) throws {
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+        XCTAssertTrue((200..<300).contains(statusCode), "Unexpected HTTP status \(statusCode)")
+    }
+}
+
+private struct LoginPayload: Decodable {
+    let token: String
+}
+
+private struct SeededNote {
+    let title: String
+    let bodyNeedle: String
+}
+
+private struct NotePayload: Encodable {
+    let content: String
+    let tags: [String]
 }

@@ -10,6 +10,7 @@ final class NotesViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var isLoadingMore = false
     @Published var errorMessage: String?
+    @Published var isCreateRequested = false
 
     let api: TagNoteAPI
     private let cache: LocalCache
@@ -94,10 +95,23 @@ final class NotesViewModel: ObservableObject {
         await refresh()
     }
 
+    func setTagFilters(_ tags: [String]) async {
+        selectedTags = Array(distinctNormalizedTags(from: tags))
+        await refresh()
+    }
+
     func clearFilters() async {
         selectedTags = []
         query = ""
         await refresh()
+    }
+
+    func presentCreate() {
+        isCreateRequested = true
+    }
+
+    func consumeCreateRequest() {
+        isCreateRequested = false
     }
 
     func delete(_ note: SubNote) async {
@@ -125,6 +139,22 @@ final class NotesViewModel: ObservableObject {
             errorMessage = error.localizedDescription
         }
     }
+}
+
+private func distinctNormalizedTags(from tags: [String]) -> [String] {
+    var seen = Set<String>()
+    var normalized: [String] = []
+    for tag in tags {
+        let value = tag
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard !value.isEmpty else { continue }
+        let key = value.lowercased()
+        guard !seen.contains(key) else { continue }
+        seen.insert(key)
+        normalized.append(value)
+    }
+    return normalized
 }
 
 private extension Error {

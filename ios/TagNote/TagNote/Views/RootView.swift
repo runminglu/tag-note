@@ -8,7 +8,7 @@ struct RootView: View {
         Group {
             if !session.isConfigured {
                 ServerSetupView()
-            } else if session.isAuthenticated && ProcessInfo.processInfo.environment["TAGNOTE_UI_CREATE_NOTE"] == "1" {
+            } else if session.isAuthenticated && shouldOpenEditorForUITest {
                 EditorView(viewModel: EditorViewModel(note: nil, api: session.api))
                     .environmentObject(appState)
             } else if session.isAuthenticated {
@@ -22,6 +22,11 @@ struct RootView: View {
             }
         }
         .tint(appState.palette.accent)
+    }
+
+    private var shouldOpenEditorForUITest: Bool {
+        ProcessInfo.processInfo.environment["TAGNOTE_UI_CREATE_NOTE"] == "1" ||
+            ProcessInfo.processInfo.arguments.contains("-ui-create-note")
     }
 }
 

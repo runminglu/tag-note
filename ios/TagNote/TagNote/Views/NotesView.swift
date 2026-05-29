@@ -4,193 +4,102 @@ struct NotesView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject var viewModel: NotesViewModel
     @State private var activeSheet: NotesSheet?
-    @State private var searchTask: Task<Void, Never>?
 
     var body: some View {
-        NavigationStack {
-            ZStack(alignment: .bottomTrailing) {
-                List {
-                    HStack(spacing: 10) {
-                        Image(systemName: "magnifyingglass")
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                if !viewModel.selectedTags.isEmpty || !viewModel.query.isEmpty {
+                    ActiveFiltersBar(viewModel: viewModel)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 16)
+                }
+
+                if viewModel.notes.isEmpty && !viewModel.isLoading {
+                    VStack(spacing: 10) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.system(size: 34, weight: .semibold))
+                        Text("No notes")
+                            .font(.headline)
+                        Text("Create a note or adjust your filters.")
+                            .font(.subheadline)
                             .foregroundStyle(appState.palette.secondaryText)
-                        TextField("Search content", text: $viewModel.query)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .submitLabel(.search)
-                            .onSubmit {
-                                Task { await viewModel.refresh() }
-                            }
-                            .accessibilityIdentifier("note-search-field")
-                        Button {
-                            activeSheet = .filter
-                        } label: {
-                            Image(systemName: viewModel.selectedTags.isEmpty ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
-                        }
-                        .accessibilityLabel("Filter by tags")
-                        .accessibilityIdentifier("tag-filter-button")
                     }
-                    .padding(12)
-                    .background(appState.palette.card)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(appState.palette.border))
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(appState.palette.background)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 56)
+                    .foregroundStyle(appState.palette.secondaryText)
+                }
 
-                    if !viewModel.selectedTags.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack {
-                                ForEach(viewModel.selectedTags, id: \.self) { tag in
-                                    TagChip(tag, isActive: true) {
-                                        Task { await viewModel.toggleTagFilter(tag) }
-                                    }
-                                }
-                                Button("Clear") {
-                                    Task { await viewModel.clearFilters() }
-                                }
-                                .font(.caption)
-                            }
-                            .padding(.vertical, 4)
-                        }
-                        .listRowBackground(appState.palette.background)
-                    }
-
-                    if viewModel.notes.isEmpty && !viewModel.isLoading {
-                        ContentUnavailableView("No notes", systemImage: "doc.text.magnifyingglass", description: Text("Create a note or adjust your filters."))
-                            .listRowBackground(appState.palette.background)
-                    }
-
-                    ForEach(viewModel.notes) { note in
-                        NoteCard(note: note) { tag in
+                ForEach(viewModel.notes) { note in
+                    NoteCard(
+                        note: note,
+                        availableTags: viewModel.availableTags,
+                        onTagTap: { tag in
                             Task { await viewModel.toggleTagFilter(tag) }
+                        },
+                        onExpand: {
+                            activeSheet = .edit(note)
+                        },
+                        onEdit: {
+                            activeSheet = .edit(note)
+                        },
+                        onDelete: {
+                            Task { await viewModel.delete(note) }
+                        },
+                        onPin: {
+                            Task { await viewModel.togglePin(note) }
                         }
-                        .accessibilityIdentifier("note-card-\(note.routeID)")
-                        .contentShape(Rectangle())
-                        .onTapGesture { activeSheet = .edit(note) }
-                        .swipeActions(edge: .leading) {
-                            Button {
-                                Task { await viewModel.togglePin(note) }
-                            } label: {
-                                Label(note.pinned ? "Unpin" : "Pin", systemImage: "pin")
-                            }
-                            .tint(appState.palette.accent)
-                        }
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) {
-                                Task { await viewModel.delete(note) }
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(appState.palette.background)
-                        .onAppear {
-                            Task { await viewModel.loadMoreIfNeeded(current: note) }
-                        }
+                    )
+                    .accessibilityIdentifier("note-card-\(note.routeID)")
+                    .onAppear {
+                        Task { await viewModel.loadMoreIfNeeded(current: note) }
                     }
+                }
 
-                    if viewModel.isLoadingMore {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .listRowBackground(appState.palette.background)
-                    }
-                }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-                .background(appState.palette.background)
-                .refreshable { await viewModel.refresh() }
-                .accessibilityIdentifier("notes-screen")
-
-                Button {
-                    activeSheet = .create
-                } label: {
-                    Image(systemName: "square.and.pencil")
-                        .font(.title3.weight(.semibold))
-                        .frame(width: 54, height: 54)
-                }
-                .buttonStyle(.borderedProminent)
-                .clipShape(Circle())
-                .shadow(radius: 4)
-                .padding()
-                .accessibilityLabel("Compose")
-                .accessibilityIdentifier("new-note-button")
-            }
-            .navigationTitle("TagNote")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        activeSheet = .create
-                    } label: {
-                        Image(systemName: "square.and.pencil")
-                    }
-                    .accessibilityLabel("Compose")
-                    .accessibilityIdentifier("new-note-toolbar-button")
-                }
-                ToolbarItem {
-                    Button {
-                        activeSheet = .filter
-                    } label: {
-                        Image(systemName: "tag")
-                    }
-                    .accessibilityLabel("Filter by tags")
-                }
-                ToolbarItem {
-                    Menu {
-                        Picker("Sort", selection: $viewModel.sort) {
-                            Text("Newest first").tag("newest")
-                            Text("Recently updated").tag("updated")
-                        }
-                        .onChange(of: viewModel.sort) { _, _ in
-                            Task { await viewModel.refresh() }
-                        }
-                    } label: {
-                        Image(systemName: "arrow.up.arrow.down")
-                    }
+                if viewModel.isLoadingMore {
+                    ProgressView()
+                        .tint(appState.palette.accent)
+                        .padding(.vertical, 18)
                 }
             }
-            .onChange(of: viewModel.query) { _, _ in
-                searchTask?.cancel()
-                searchTask = Task {
-                    do {
-                        try await Task.sleep(nanoseconds: 350_000_000)
-                    } catch {
-                        return
-                    }
-                    guard !Task.isCancelled else { return }
-                    await viewModel.refresh()
-                }
+        }
+        .background(appState.palette.background)
+        .refreshable { await viewModel.refresh() }
+        .accessibilityIdentifier("notes-screen")
+        .task {
+            await viewModel.loadCached()
+            await viewModel.refresh()
+            presentCreateIfRequested()
+        }
+        .onChange(of: viewModel.isCreateRequested) { _, _ in
+            presentCreateIfRequested()
+        }
+        .sheet(item: $activeSheet, onDismiss: { Task { await viewModel.refresh() } }) { sheet in
+            switch sheet {
+            case .create:
+                EditorView(viewModel: EditorViewModel(note: nil, api: viewModel.api))
+                    .environmentObject(appState)
+            case .edit(let note):
+                EditorView(viewModel: EditorViewModel(note: note, api: viewModel.api))
+                    .environmentObject(appState)
             }
-            .task {
-                await viewModel.loadCached()
-                await viewModel.refresh()
-            }
-            .sheet(item: $activeSheet, onDismiss: { Task { await viewModel.refresh() } }) { sheet in
-                switch sheet {
-                case .create:
-                    EditorView(viewModel: EditorViewModel(note: nil, api: viewModel.api))
-                        .environmentObject(appState)
-                case .edit(let note):
-                    EditorView(viewModel: EditorViewModel(note: note, api: viewModel.api))
-                        .environmentObject(appState)
-                case .filter:
-                    TagFilterSheet(viewModel: viewModel)
-                        .environmentObject(appState)
-                        .presentationDetents([.medium, .large])
-                }
-            }
-            .alert("Error", isPresented: Binding(get: { viewModel.errorMessage != nil }, set: { if !$0 { viewModel.errorMessage = nil } })) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(viewModel.errorMessage ?? "")
-            }
+        }
+        .alert("Error", isPresented: Binding(get: { viewModel.errorMessage != nil }, set: { if !$0 { viewModel.errorMessage = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(viewModel.errorMessage ?? "")
         }
     }
 
+    private func presentCreateIfRequested() {
+        guard viewModel.isCreateRequested else { return }
+        viewModel.consumeCreateRequest()
+        activeSheet = .create
+    }
 }
 
 private enum NotesSheet: Identifiable {
     case create
     case edit(SubNote)
-    case filter
 
     var id: String {
         switch self {
@@ -198,123 +107,214 @@ private enum NotesSheet: Identifiable {
             return "create"
         case .edit(let note):
             return "edit-\(note.routeID)"
-        case .filter:
-            return "filter"
         }
     }
 }
 
-struct TagFilterSheet: View {
-    @Environment(\.dismiss) private var dismiss
+private struct ActiveFiltersBar: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject var viewModel: NotesViewModel
-    @State private var tagQuery = ""
-
-    private var visibleTags: [TagInfo] {
-        let q = tagQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty else { return viewModel.availableTags }
-        return viewModel.availableTags.filter { $0.name.localizedCaseInsensitiveContains(q) }
-    }
-
-    var body: some View {
-        NavigationStack {
-            List {
-                if viewModel.selectedTags.isEmpty {
-                    Text("Choose one or more tags. Notes match all selected tags.")
-                        .font(.footnote)
-                        .foregroundStyle(appState.palette.secondaryText)
-                        .listRowBackground(appState.palette.background)
-                }
-
-                ForEach(visibleTags) { tag in
-                    Button {
-                        Task { await viewModel.toggleTagFilter(tag.name) }
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(tag.name)
-                                    .foregroundStyle(appState.palette.text)
-                                Text("\(tag.noteCount) notes")
-                                    .font(.caption)
-                                    .foregroundStyle(appState.palette.secondaryText)
-                            }
-                            Spacer()
-                            if viewModel.selectedTags.contains(tag.name) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(appState.palette.accent)
-                            }
-                        }
-                    }
-                    .accessibilityIdentifier("tag-filter-option-\(tag.name)")
-                    .listRowBackground(appState.palette.background)
-                }
-            }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .background(appState.palette.background)
-            .navigationTitle("Filter by Tags")
-            .searchable(text: $tagQuery, prompt: "Search tags")
-            .toolbar {
-                ToolbarItem {
-                    Button("Done") { dismiss() }
-                }
-                ToolbarItem(placement: .bottomBar) {
-                    Button("Clear Filters") {
-                        Task { await viewModel.clearFilters() }
-                    }
-                    .disabled(viewModel.selectedTags.isEmpty && viewModel.query.isEmpty)
-                }
-            }
-            .task {
-                await viewModel.refreshTagFilters()
-            }
-        }
-    }
-}
-
-struct NoteCard: View {
-    @EnvironmentObject private var appState: AppState
-    let note: SubNote
-    let onTagTap: (String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Text(note.displayDate, style: .date)
-                    .font(.caption)
-                    .foregroundStyle(appState.palette.secondaryText)
-                if note.pinned {
-                    Image(systemName: "pin.fill")
-                        .font(.caption)
-                        .foregroundStyle(appState.palette.accent)
+            if !viewModel.query.isEmpty {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                    Text(viewModel.query)
+                        .lineLimit(1)
+                    Spacer()
+                    Button {
+                        Task {
+                            viewModel.query = ""
+                            await viewModel.refresh()
+                        }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.plain)
                 }
-                Spacer()
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(appState.palette.secondaryText)
             }
 
-            Text(note.snippet?.isEmpty == false ? note.snippet! : note.content)
-                .font(.body)
-                .lineLimit(6)
-                .foregroundStyle(appState.palette.text)
-
-            if !note.tags.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack {
-                        ForEach(note.tags, id: \.self) { tag in
-                            TagChip(tag) { onTagTap(tag) }
+            if !viewModel.selectedTags.isEmpty {
+                FlowLayout(spacing: 8, rowSpacing: 8) {
+                    ForEach(viewModel.selectedTags, id: \.self) { tag in
+                        TagChip(tag, isActive: true) {
+                            Task { await viewModel.toggleTagFilter(tag) }
                         }
                     }
                 }
             }
         }
         .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(appState.palette.card)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(appState.palette.border))
         .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(priorityBorder)
+    }
+}
+
+struct NoteCard: View {
+    @EnvironmentObject private var appState: AppState
+    let note: SubNote
+    var availableTags: [TagInfo] = []
+    let onTagTap: (String) -> Void
+    var onExpand: (() -> Void)?
+    var onEdit: (() -> Void)?
+    var onDelete: (() -> Void)?
+    var onPin: (() -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .top, spacing: 6) {
+                Button {
+                    onPin?()
+                } label: {
+                    Image(systemName: note.pinned ? "star.fill" : "star")
+                        .font(.system(size: 17, weight: .semibold))
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(note.pinned ? appState.palette.accent : appState.palette.secondaryText)
+                .accessibilityLabel(note.pinned ? "Unpin note" : "Pin note")
+
+                FlowLayout(spacing: 6, rowSpacing: 6) {
+                    ForEach(note.tags, id: \.self) { tag in
+                        TagChip(tag) { onTagTap(tag) }
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            HStack(alignment: .center) {
+                Text(note.displayDate, format: .dateTime.month(.abbreviated).day().hour().minute())
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(appState.palette.secondaryText)
+                    .lineLimit(1)
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    CardIconButton(systemName: "arrow.up.left.and.arrow.down.right", label: "Open note") {
+                        onExpand?()
+                    }
+                    CardIconButton(systemName: "square.and.pencil", label: "Edit note") {
+                        onEdit?()
+                    }
+                    CardIconButton(systemName: "trash", label: "Delete note", role: .destructive) {
+                        onDelete?()
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                if let title = previewParts.title {
+                    Text(title)
+                        .font(.system(size: 18, weight: .bold))
+                        .lineSpacing(7)
+                        .foregroundStyle(appState.palette.text)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !previewParts.body.isEmpty {
+                    Text(previewParts.body)
+                        .font(.system(size: 18, weight: .regular))
+                        .lineSpacing(7)
+                        .foregroundStyle(appState.palette.text)
+                        .lineLimit(7)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if isLongPreview {
+                Button("Read more") {
+                    onExpand?()
+                }
+                .font(.system(size: 13, weight: .bold))
+                .buttonStyle(.plain)
+                .foregroundStyle(Color(hex: 0x83C5BE))
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cardBackground)
+        .overlay(
+            Rectangle()
+                .stroke(note.pinned ? appState.palette.accent : appState.palette.border, lineWidth: note.pinned ? 2 : 1)
+        )
     }
 
-    private var priorityBorder: some View {
-        RoundedRectangle(cornerRadius: 8)
-            .stroke(note.pinned ? appState.palette.accent : appState.palette.border, lineWidth: note.pinned ? 2 : 1)
+    private var previewText: String {
+        let raw = note.snippet?.isEmpty == false ? note.snippet ?? "" : note.content
+        let stripped = raw
+            .replacingOccurrences(of: #"(?m)^#{1,6}\s*"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"[*_`>\[\]()]+"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return stripped.isEmpty ? "Untitled note" : stripped
+    }
+
+    private var previewParts: (title: String?, body: String) {
+        let raw = note.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return (nil, previewText) }
+        let lines = raw.components(separatedBy: .newlines)
+        guard let firstIndex = lines.firstIndex(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) else {
+            return (nil, previewText)
+        }
+        let first = lines[firstIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard first.range(of: #"^#{1,6}\s+"#, options: .regularExpression) != nil else {
+            return (nil, previewText)
+        }
+        let title = first
+            .replacingOccurrences(of: #"^#{1,6}\s+"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"[*_`>\[\]()]+"#, with: "", options: .regularExpression)
+        let body = lines.dropFirst(firstIndex + 1)
+            .joined(separator: "\n")
+            .replacingOccurrences(of: #"(?m)^#{1,6}\s*"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"[*_`>\[\]()]+"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (title.isEmpty ? nil : title, body)
+    }
+
+    private var isLongPreview: Bool {
+        previewText.count > 260 || previewText.components(separatedBy: .newlines).count > 7
+    }
+
+    private var cardBackground: Color {
+        guard let first = note.tags.first,
+              let tag = availableTags.first(where: { $0.name == first }) else {
+            return appState.palette.card
+        }
+        if tag.importance >= 70 && tag.urgency >= 70 {
+            return Color(hex: 0x5F351A)
+        }
+        if tag.importance >= 70 || tag.urgency >= 70 {
+            return Color(hex: 0x4A5A13)
+        }
+        return appState.palette.card
+    }
+}
+
+private struct CardIconButton: View {
+    @EnvironmentObject private var appState: AppState
+    let systemName: String
+    let label: String
+    var role: ButtonRole?
+    let action: () -> Void
+
+    var body: some View {
+        Button(role: role, action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 15, weight: .semibold))
+                .frame(width: 28, height: 28)
+                .foregroundStyle(role == .destructive ? appState.palette.secondaryText : appState.palette.secondaryText)
+                .background(appState.palette.tagBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 }
 
@@ -334,15 +334,79 @@ struct TagChip: View {
         Button {
             action?()
         } label: {
-            Text(label)
-                .font(.caption.weight(.medium))
+            Text("#\(label)")
+                .font(.system(size: 15, weight: .bold))
                 .lineLimit(1)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .foregroundStyle(isActive ? appState.palette.card : appState.palette.text)
-                .background(isActive ? appState.palette.accent : appState.palette.tagBackground)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .foregroundStyle(isActive ? appState.palette.text : appState.palette.secondaryText)
+                .background(isActive ? Color(hex: 0x4F5F20) : appState.palette.tagBackground)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
     }
+}
+
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+    var rowSpacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = rows(for: subviews, proposal: proposal)
+        return CGSize(
+            width: proposal.width ?? rows.map(\.width).max() ?? 0,
+            height: rows.reduce(0) { $0 + $1.height } + CGFloat(max(rows.count - 1, 0)) * rowSpacing
+        )
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let rows = rows(for: subviews, proposal: ProposedViewSize(width: bounds.width, height: proposal.height))
+        var y = bounds.minY
+        for row in rows {
+            var x = bounds.minX
+            for element in row.elements {
+                subviews[element.index].place(
+                    at: CGPoint(x: x, y: y),
+                    anchor: .topLeading,
+                    proposal: ProposedViewSize(element.size)
+                )
+                x += element.size.width + spacing
+            }
+            y += row.height + rowSpacing
+        }
+    }
+
+    private func rows(for subviews: Subviews, proposal: ProposedViewSize) -> [FlowRow] {
+        let maxWidth = proposal.width ?? .infinity
+        var rows: [FlowRow] = []
+        var current = FlowRow()
+
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            let nextWidth = current.elements.isEmpty ? size.width : current.width + spacing + size.width
+            if nextWidth > maxWidth, !current.elements.isEmpty {
+                rows.append(current)
+                current = FlowRow()
+            }
+            current.elements.append(FlowElement(index: index, size: size))
+            current.width = current.elements.count == 1 ? size.width : current.width + spacing + size.width
+            current.height = max(current.height, size.height)
+        }
+
+        if !current.elements.isEmpty {
+            rows.append(current)
+        }
+        return rows
+    }
+}
+
+private struct FlowRow {
+    var elements: [FlowElement] = []
+    var width: CGFloat = 0
+    var height: CGFloat = 0
+}
+
+private struct FlowElement {
+    let index: Int
+    let size: CGSize
 }
