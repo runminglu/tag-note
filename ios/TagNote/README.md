@@ -102,6 +102,7 @@ talks to the simulator daemon (no Accessibility/Automation grant required):
 | `TAGNOTE_UI_CREATE_NOTE=1` | Opens the editor on launch. |
 | `TAGNOTE_UI_OPEN_SIDEBAR=1` | Opens the compact drawer on launch. |
 | `TAGNOTE_UI_SCROLL_BOTTOM=1` | Starts the sidebar scrolled to the bottom (for safe-area / clipping checks). |
+| `TAGNOTE_UI_PRESELECT_TAGS=a,b` | Pre-applies the given comma-separated tag filters on launch (for filter-chip checks). |
 
 Pass them to the app with the `SIMCTL_CHILD_` prefix. Example — capture the
 drawer scrolled to the bottom (e.g. to verify content does not slide under the

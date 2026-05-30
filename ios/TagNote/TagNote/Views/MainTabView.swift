@@ -54,6 +54,9 @@ private struct WebStyleAppShell: View {
             if ProcessInfo.processInfo.environment["TAGNOTE_UI_OPEN_SIDEBAR"] == "1" {
                 isSidebarOpen = true
             }
+            if let preset = ProcessInfo.processInfo.environment["TAGNOTE_UI_PRESELECT_TAGS"], !preset.isEmpty {
+                await notesViewModel.setTagFilters(preset.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) })
+            }
         }
         .sheet(item: $activeEditorSheet, onDismiss: { Task { await notesViewModel.refresh() } }) { sheet in
             switch sheet {
@@ -242,9 +245,7 @@ private struct SidebarView: View {
     @ObservedObject var tagsViewModel: TagsViewModel
     let createNote: () -> Void
     @State private var tagSearch = ""
-    @State private var tagFilterText = ""
     @State private var searchTask: Task<Void, Never>?
-    @State private var tagFilterTask: Task<Void, Never>?
 
     private var unreviewedTagCount: Int {
         notesViewModel.availableTags.filter(\.isUnreviewed).count
@@ -375,32 +376,7 @@ private struct SidebarView: View {
                         }
                     }
 
-                    SidebarSearchField(
-                        placeholder: "Filter by tags...",
-                        text: $tagFilterText,
-                        accessibilityID: "tag-filter-summary"
-                    )
-                    .onSubmit {
-                        applyTagFilterText()
-                    }
-                    .onChange(of: tagFilterText) { _, _ in
-                        tagFilterTask?.cancel()
-                        tagFilterTask = Task {
-                            do {
-                                try await Task.sleep(nanoseconds: 450_000_000)
-                            } catch {
-                                return
-                            }
-                            guard !Task.isCancelled else { return }
-                            await applyTagFilterTextAsync()
-                        }
-                    }
-                    .onChange(of: notesViewModel.selectedTags) { _, tags in
-                        let current = tags.joined(separator: ", ")
-                        if tagFilterText != current {
-                            tagFilterText = current
-                        }
-                    }
+                    TagFilterChipField(notesViewModel: notesViewModel)
 
                     Menu {
                         Picker("Sort", selection: $notesViewModel.sort) {
@@ -437,10 +413,7 @@ private struct SidebarView: View {
                         accessibilityID: "sidebar-tag-search-field"
                     )
                     FlexibleChipGrid(tags: visibleTags, selectedTags: notesViewModel.selectedTags) { tag in
-                        Task {
-                            await notesViewModel.toggleTagFilter(tag.name)
-                            tagFilterText = notesViewModel.selectedTags.joined(separator: ", ")
-                        }
+                        Task { await notesViewModel.toggleTagFilter(tag.name) }
                     }
                 }
                 .padding(.horizontal, 20)
@@ -460,7 +433,6 @@ private struct SidebarView: View {
             await tagsViewModel.loadCached()
             await tagsViewModel.refresh()
             await notesViewModel.refreshTagFilters()
-            tagFilterText = notesViewModel.selectedTags.joined(separator: ", ")
         }
     }
 
@@ -489,18 +461,6 @@ private struct SidebarView: View {
         Task { await appState.saveSettings(settings) }
     }
 
-    private func applyTagFilterText() {
-        Task { await applyTagFilterTextAsync() }
-    }
-
-    private func applyTagFilterTextAsync() async {
-        let tags = tagFilterText
-            .split { character in
-                character == "," || character == " " || character == "\n" || character == "\t"
-            }
-            .map(String.init)
-        await notesViewModel.setTagFilters(tags)
-    }
 }
 
 private struct SidebarIconButton: View {
@@ -581,6 +541,92 @@ private struct FlexibleChipGrid: View {
             }
         }
     }
+}
+
+// Web-parity "Filter by tags" control: active filters render as removable,
+// priority-colored chips inside a bordered field with an inline text input that
+// commits on space / comma / return (matches the web sidebar chip input).
+private struct TagFilterChipField: View {
+    @EnvironmentObject private var appState: AppState
+    @ObservedObject var notesViewModel: NotesViewModel
+    @State private var draft = ""
+
+    var body: some View {
+        FlowLayout(spacing: 6, rowSpacing: 6) {
+            ForEach(notesViewModel.selectedTags, id: \.self) { tag in
+                RemovableTagChip(
+                    label: tag,
+                    tagInfo: notesViewModel.availableTags.first { $0.name == tag }
+                ) {
+                    Task { await notesViewModel.toggleTagFilter(tag) }
+                }
+            }
+
+            TextField(notesViewModel.selectedTags.isEmpty ? "Filter by tags..." : "", text: $draft)
+                .font(.system(size: 15, weight: .medium))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .foregroundStyle(appState.palette.text)
+                .frame(minWidth: 90)
+                .onChange(of: draft) { _, value in
+                    if let last = value.last, last == " " || last == "," || last == "\n" {
+                        commitDraft()
+                    }
+                }
+                .onSubmit(commitDraft)
+                .accessibilityIdentifier("tag-filter-input")
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(appState.palette.background)
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(appState.palette.border, lineWidth: 1))
+        .accessibilityIdentifier("tag-filter-summary")
+    }
+
+    private func commitDraft() {
+        let tag = draft
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+            .lowercased()
+        draft = ""
+        guard !tag.isEmpty, !notesViewModel.selectedTags.contains(tag) else { return }
+        Task { await notesViewModel.setTagFilters(notesViewModel.selectedTags + [tag]) }
+    }
+}
+
+private struct RemovableTagChip: View {
+    @EnvironmentObject private var appState: AppState
+    let label: String
+    var tagInfo: TagInfo?
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text("#\(label)")
+                .font(.system(size: 15, weight: .bold))
+                .lineLimit(1)
+            Button(action: onRemove) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove \(label) filter")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .foregroundStyle(foregroundColor)
+        .background(backgroundColor)
+        .overlay(Capsule().stroke(borderColor, lineWidth: 1))
+        .clipShape(Capsule())
+    }
+
+    private var pill: (background: Color, text: Color)? {
+        guard let info = tagInfo else { return nil }
+        return TagPriority.pillStyle(importance: info.importance, urgency: info.urgency, isActive: true, isDark: appState.palette.isDark)
+    }
+    private var backgroundColor: Color { pill?.background ?? appState.palette.accent }
+    private var foregroundColor: Color { pill?.text ?? appState.palette.card }
+    private var borderColor: Color { (pill?.text ?? appState.palette.accent).opacity(0.5) }
 }
 
 private extension View {
