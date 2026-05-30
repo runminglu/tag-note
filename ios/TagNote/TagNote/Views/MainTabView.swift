@@ -10,6 +10,7 @@ struct MainTabView: View {
 
 private struct WebStyleAppShell: View {
     @EnvironmentObject private var appState: AppState
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     let api: TagNoteAPI
     let cache: LocalCache
     @StateObject private var notesViewModel: NotesViewModel
@@ -19,7 +20,6 @@ private struct WebStyleAppShell: View {
     @State private var isSidebarOpen = false
     @State private var activeEditorSheet: AppEditorSheet?
     @State private var didAutoOpenEditor = false
-    @State private var windowWidth: CGFloat = 0
 
     init(api: TagNoteAPI, cache: LocalCache) {
         self.api = api
@@ -29,14 +29,14 @@ private struct WebStyleAppShell: View {
         _trashViewModel = StateObject(wrappedValue: TrashViewModel(api: api))
     }
 
-    // Web-style responsive breakpoint (ux_guidelines §9): persistent sidebar +
-    // multi-column feed once the window is wide enough (full screen or a wide
-    // split), and the slide-over drawer when the window is narrow (phone,
-    // slide-over, small split). Driven by the actual window width so it adapts
-    // to any split / Stage Manager window size, like the web client.
+    // Persistent sidebar when the window is regular-width (iPad full screen or a
+    // wide split / Stage Manager window), and the slide-over drawer when compact
+    // (iPhone, slide-over, narrow split). horizontalSizeClass is the reliable,
+    // built-in "is the window wide enough" signal — the iOS equivalent of a web
+    // media query — and it updates as the window is resized.
     private var usesPersistentSidebar: Bool {
         if ProcessInfo.processInfo.environment["TAGNOTE_UI_FORCE_COMPACT"] == "1" { return false }
-        return windowWidth >= 700
+        return horizontalSizeClass == .regular
     }
 
     var body: some View {
@@ -47,13 +47,6 @@ private struct WebStyleAppShell: View {
                 compactLayout
             }
         }
-        .background(
-            GeometryReader { proxy in
-                Color.clear
-                    .onAppear { windowWidth = proxy.size.width }
-                    .onChange(of: proxy.size.width) { _, newValue in windowWidth = newValue }
-            }
-        )
         .task {
             await notesViewModel.loadCached()
             await notesViewModel.refresh()
