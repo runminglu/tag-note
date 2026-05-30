@@ -150,6 +150,29 @@ private struct WebStyleAppShell: View {
                 .animation(.easeInOut(duration: 0.22), value: isSidebarOpen)
                 .shadow(color: .black.opacity(isSidebarOpen ? 0.28 : 0), radius: 18, x: 4, y: 0)
             }
+            // The hamburger can sit under the Stage Manager window grabber in a
+            // small iPad window, so a left-edge swipe must also open the drawer —
+            // otherwise the sidebar (the only way to reach search / tags /
+            // settings at compact width) becomes unreachable.
+            .overlay(alignment: .leading) {
+                if !isSidebarOpen {
+                    Color.clear
+                        .frame(width: 20)
+                        .frame(maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 12)
+                                .onEnded { value in
+                                    if value.translation.width > 40 {
+                                        withAnimation(.easeInOut(duration: 0.22)) {
+                                            isSidebarOpen = true
+                                        }
+                                    }
+                                }
+                        )
+                        .ignoresSafeArea()
+                }
+            }
         }
     }
 
@@ -275,7 +298,11 @@ private struct SidebarView: View {
         ZStack {
             appState.palette.card
             VStack(spacing: 0) {
-                Color.clear.frame(height: safeAreaTop)
+                // Reserve space for the Stage Manager window grabber (the
+                // top-leading ••• control) so the sidebar's scrolled content
+                // never slides under it. In full screen / on iPhone this is just
+                // the regular status-bar inset.
+                Color.clear.frame(height: max(safeAreaTop, 44))
                 ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 18) {
