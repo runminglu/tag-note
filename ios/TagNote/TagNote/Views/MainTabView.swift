@@ -51,6 +51,9 @@ private struct WebStyleAppShell: View {
                 didAutoOpenEditor = true
                 activeEditorSheet = .create
             }
+            if ProcessInfo.processInfo.environment["TAGNOTE_UI_OPEN_SIDEBAR"] == "1" {
+                isSidebarOpen = true
+            }
         }
         .sheet(item: $activeEditorSheet, onDismiss: { Task { await notesViewModel.refresh() } }) { sheet in
             switch sheet {
@@ -63,24 +66,28 @@ private struct WebStyleAppShell: View {
 
     // Desktop-like split: fixed sidebar rail + the active surface fills the rest.
     private var regularLayout: some View {
-        HStack(spacing: 0) {
-            SidebarView(
-                selection: $selection,
-                isOpen: .constant(true),
-                isPersistent: true,
-                notesViewModel: notesViewModel,
-                tagsViewModel: tagsViewModel,
-                createNote: { activeEditorSheet = .create }
-            )
-            .frame(width: 280)
+        GeometryReader { geometry in
+            HStack(spacing: 0) {
+                SidebarView(
+                    selection: $selection,
+                    isOpen: .constant(true),
+                    isPersistent: true,
+                    safeAreaTop: geometry.safeAreaInsets.top,
+                    safeAreaBottom: geometry.safeAreaInsets.bottom,
+                    notesViewModel: notesViewModel,
+                    tagsViewModel: tagsViewModel,
+                    createNote: { activeEditorSheet = .create }
+                )
+                .frame(width: 280)
 
-            Rectangle()
-                .fill(appState.palette.border)
-                .frame(width: 1)
-                .ignoresSafeArea()
+                Rectangle()
+                    .fill(appState.palette.border)
+                    .frame(width: 1)
+                    .ignoresSafeArea()
 
-            content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
         .background(appState.palette.background.ignoresSafeArea())
     }
@@ -118,6 +125,8 @@ private struct WebStyleAppShell: View {
                     selection: $selection,
                     isOpen: $isSidebarOpen,
                     isPersistent: false,
+                    safeAreaTop: geometry.safeAreaInsets.top,
+                    safeAreaBottom: geometry.safeAreaInsets.bottom,
                     notesViewModel: notesViewModel,
                     tagsViewModel: tagsViewModel,
                     createNote: {
@@ -227,6 +236,8 @@ private struct SidebarView: View {
     @Binding var selection: AppSection
     @Binding var isOpen: Bool
     var isPersistent = false
+    var safeAreaTop: CGFloat = 0
+    var safeAreaBottom: CGFloat = 0
     @ObservedObject var notesViewModel: NotesViewModel
     @ObservedObject var tagsViewModel: TagsViewModel
     let createNote: () -> Void
@@ -246,7 +257,16 @@ private struct SidebarView: View {
     }
 
     var body: some View {
-        ScrollView {
+        // The drawer fills the full height (card bleeds behind the status bar /
+        // home indicator), but the ScrollView's FRAME is pinned to the safe area
+        // by fixed spacers, so scrolled content is clipped at the status bar
+        // instead of sliding under the clock. The insets are measured by the
+        // parent layout's root GeometryReader and passed in.
+        ZStack {
+            appState.palette.card
+            VStack(spacing: 0) {
+                Color.clear.frame(height: safeAreaTop)
+                ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack(spacing: 8) {
@@ -426,11 +446,16 @@ private struct SidebarView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 16)
             }
+                }
+                // Clip to the ScrollView's own frame so scrolled content is cut
+                // off at the status bar / home indicator instead of drawing into
+                // the safe-area spacers (the drawer ignores the safe area).
+                .clipped()
+                .defaultScrollAnchor(ProcessInfo.processInfo.environment["TAGNOTE_UI_SCROLL_BOTTOM"] == "1" ? .bottom : nil)
+                Color.clear.frame(height: safeAreaBottom)
+            }
         }
-        // Let the panel surface bleed behind the status bar / home indicator,
-        // but keep the header and nav content inside the safe area so the
-        // wordmark never collides with the clock or Dynamic Island.
-        .background(appState.palette.card.ignoresSafeArea())
+        .ignoresSafeArea()
         .task {
             await tagsViewModel.loadCached()
             await tagsViewModel.refresh()
