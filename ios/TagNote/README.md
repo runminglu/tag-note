@@ -143,6 +143,24 @@ the strip held ~747 dark pixels while scrolled until the drawer's `ScrollView`
 was pinned to the safe area with fixed inset spacers and `.clipped()`, after
 which it measured 0.
 
+### Keep screenshots small when reading them back
+
+`xcrun simctl io ... screenshot` captures at full device resolution — an iPad
+Pro 13" frame is 2064×2752 (~5.7 MP, 1–3 MB per PNG). Large image payloads are
+slow and unreliable to load back into an agent: in a long, tool-heavy session
+they can arrive late or come back blank, which looks like "intermittent image
+rendering" (the image is fine — its delivery is just delayed by size). Downscale
+before reading, and read one image per turn:
+
+```bash
+sips -Z 1000 /tmp/drawer.png --out /tmp/drawer_small.png   # ~6x smaller payload
+```
+
+Best of all, don't rely on *seeing* the image: run the Pillow pixel check above
+and read its small text result instead. A one-line PASS/FAIL is fully reliable
+regardless of image size or session length, and is what the safe-area /
+status-bar fixes were ultimately verified with.
+
 ## Headless Mac Mini CI
 
 iOS Simulator tests can run without a visible monitor, but they still need a
