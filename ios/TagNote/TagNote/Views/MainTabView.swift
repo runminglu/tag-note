@@ -35,7 +35,8 @@ private struct WebStyleAppShell: View {
     // slide-over, small split). Driven by the actual window width so it adapts
     // to any split / Stage Manager window size, like the web client.
     private var usesPersistentSidebar: Bool {
-        windowWidth >= 700
+        if ProcessInfo.processInfo.environment["TAGNOTE_UI_FORCE_COMPACT"] == "1" { return false }
+        return windowWidth >= 700
     }
 
     var body: some View {
@@ -234,17 +235,16 @@ private struct MobileHeader: View {
     @EnvironmentObject private var appState: AppState
     let openSidebar: () -> Void
 
+    // On iPad the top bar only appears in a windowed mode (Split View / Stage
+    // Manager / Slide Over), where the system puts its window control (•••) in
+    // the top-leading corner — right over a leading menu button. Put the menu
+    // button on the trailing edge there so it stays visible and tappable; keep
+    // it leading on iPhone, which never shows that system control.
+    private var menuOnTrailing: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+
     var body: some View {
         HStack(spacing: 16) {
-            Button(action: openSidebar) {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 20, weight: .semibold))
-                    .frame(width: 36, height: 36)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(appState.palette.text)
-            .accessibilityLabel("Open menu")
-            .accessibilityIdentifier("sidebar-open-button")
+            if !menuOnTrailing { menuButton }
 
             BrandMark(size: 32)
 
@@ -253,8 +253,12 @@ private struct MobileHeader: View {
                 .foregroundStyle(appState.palette.text)
 
             Spacer()
+
+            if menuOnTrailing { menuButton }
         }
-        .padding(.horizontal, 16)
+        // Indent the leading edge on iPad so the brand clears the system •••.
+        .padding(.leading, menuOnTrailing ? 64 : 16)
+        .padding(.trailing, 16)
         .frame(height: 48)
         .background(appState.palette.card)
         .overlay(alignment: .bottom) {
@@ -262,6 +266,18 @@ private struct MobileHeader: View {
                 .fill(appState.palette.border)
                 .frame(height: 1)
         }
+    }
+
+    private var menuButton: some View {
+        Button(action: openSidebar) {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 20, weight: .semibold))
+                .frame(width: 36, height: 36)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(appState.palette.text)
+        .accessibilityLabel("Open menu")
+        .accessibilityIdentifier("sidebar-open-button")
     }
 }
 
