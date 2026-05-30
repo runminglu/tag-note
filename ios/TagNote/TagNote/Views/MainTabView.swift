@@ -10,7 +10,6 @@ struct MainTabView: View {
 
 private struct WebStyleAppShell: View {
     @EnvironmentObject private var appState: AppState
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     let api: TagNoteAPI
     let cache: LocalCache
     @StateObject private var notesViewModel: NotesViewModel
@@ -20,6 +19,7 @@ private struct WebStyleAppShell: View {
     @State private var isSidebarOpen = false
     @State private var activeEditorSheet: AppEditorSheet?
     @State private var didAutoOpenEditor = false
+    @State private var windowWidth: CGFloat = 0
 
     init(api: TagNoteAPI, cache: LocalCache) {
         self.api = api
@@ -29,11 +29,13 @@ private struct WebStyleAppShell: View {
         _trashViewModel = StateObject(wrappedValue: TrashViewModel(api: api))
     }
 
-    // Adapt by available width (ux_guidelines §9): a persistent sidebar + dense
-    // feed when the screen is regular-width (iPad full screen, large split view),
-    // the slide-over drawer when compact (phone, narrow split view).
+    // Web-style responsive breakpoint (ux_guidelines §9): persistent sidebar +
+    // multi-column feed once the window is wide enough (full screen or a wide
+    // split), and the slide-over drawer when the window is narrow (phone,
+    // slide-over, small split). Driven by the actual window width so it adapts
+    // to any split / Stage Manager window size, like the web client.
     private var usesPersistentSidebar: Bool {
-        horizontalSizeClass == .regular
+        windowWidth >= 700
     }
 
     var body: some View {
@@ -44,6 +46,13 @@ private struct WebStyleAppShell: View {
                 compactLayout
             }
         }
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { windowWidth = proxy.size.width }
+                    .onChange(of: proxy.size.width) { _, newValue in windowWidth = newValue }
+            }
+        )
         .task {
             await notesViewModel.loadCached()
             await notesViewModel.refresh()
