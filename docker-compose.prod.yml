@@ -16,6 +16,9 @@ services:
       - "443:443/udp"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Drop-in directory for co-hosted sites (imported by Caddyfile).
+      # Managed by other apps' deploy scripts; not touched by TagNote.
+      - ./sites:/etc/caddy/sites:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:

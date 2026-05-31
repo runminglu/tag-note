@@ -1,3 +1,10 @@
+# Co-hosted sites (e.g. bluelight.ventures) drop their own *.caddy site files
+# into ./sites, mounted at /etc/caddy/sites. This directory is NOT overwritten
+# by release/deploy.sh, so other apps on this host manage their own routing
+# and TLS independently of TagNote. A reload picks up new files with no
+# downtime for the sites already running.
+import /etc/caddy/sites/*.caddy
+
 {$TAGNOTE_DOMAIN:example.com} {
 	# Grafana reverse proxy (keep the /grafana prefix)
 	handle /grafana/* {
