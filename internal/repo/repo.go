@@ -42,6 +42,7 @@ type Repository interface {
 	CreateUser(ctx context.Context, id, email, passwordHash, displayName string, createdAt time.Time) error
 	FindUserByEmail(ctx context.Context, email string) (user *model.User, passwordHash string, err error)
 	FindUserByID(ctx context.Context, id string) (*model.User, error)
+	DeleteUser(ctx context.Context, userID string) error
 
 	// Google OAuth methods
 	FindUserByGoogleID(ctx context.Context, googleID string) (*model.User, error)

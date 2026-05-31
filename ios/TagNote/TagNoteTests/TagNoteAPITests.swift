@@ -142,10 +142,11 @@ final class TagNoteAPITests: XCTestCase {
 
         let user = try await api.me()
         await api.logout()
+        try await api.deleteAccount()
 
         XCTAssertEqual(user.email, "test@test.com")
-        XCTAssertEqual(seen.map(\.0), ["GET", "POST"])
-        XCTAssertEqual(seen.map(\.1), ["/api/v1/auth/me", "/api/v1/auth/logout"])
+        XCTAssertEqual(seen.map(\.0), ["GET", "POST", "DELETE"])
+        XCTAssertEqual(seen.map(\.1), ["/api/v1/auth/me", "/api/v1/auth/logout", "/api/v1/auth/account"])
     }
 
     func testListNotesBuildsFilterQuery() async throws {

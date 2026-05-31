@@ -80,6 +80,19 @@ final class SessionStore: ObservableObject {
         await cache.clear()
     }
 
+    func deleteAccount() async {
+        errorMessage = nil
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            try await api.deleteAccount()
+            clearAuth()
+            await cache.clear()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func resetServer() {
         clearAuth()
         KeychainStore.delete(Keys.serverURL)

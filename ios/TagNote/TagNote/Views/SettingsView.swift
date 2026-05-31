@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var session: SessionStore
+    @State private var showDeleteAccountPrompt = false
 
     var body: some View {
         NavigationStack {
@@ -16,6 +17,17 @@ struct SettingsView: View {
                         Task { await session.logout() }
                     } label: {
                         Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
+                    }
+                    Button(role: .destructive) {
+                        showDeleteAccountPrompt = true
+                    } label: {
+                        Label("Delete account", systemImage: "person.crop.circle.badge.xmark")
+                    }
+                    .disabled(session.isLoading)
+                    if let message = session.errorMessage {
+                        Text(message)
+                            .font(.footnote)
+                            .foregroundStyle(appState.palette.destructive)
                     }
                 }
 
@@ -43,6 +55,14 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .scrollContentBackground(.hidden)
             .background(appState.palette.background)
+            .alert("Delete account?", isPresented: $showDeleteAccountPrompt) {
+                Button("Delete account", role: .destructive) {
+                    Task { await session.deleteAccount() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This permanently deletes your account, notes, tags, and settings from this server.")
+            }
         }
     }
 

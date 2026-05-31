@@ -74,6 +74,10 @@ final class TagNoteAPI {
         try? await requestNoContent("POST", "/auth/logout")
     }
 
+    func deleteAccount() async throws {
+        try await requestNoContent("DELETE", "/auth/account")
+    }
+
     func listNotes(tags: [String], query: String, sort: String, limit: Int, offset: Int) async throws -> [SubNote] {
         var items: [URLQueryItem] = tags.map { URLQueryItem(name: "tag", value: $0) }
         if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

@@ -529,6 +529,11 @@ func (a *AuthService) GetUser(ctx context.Context, userID string) (*model.User, 
 	return a.repo.FindUserByID(ctx, userID)
 }
 
+// DeleteAccount permanently deletes a user's account and database-backed data.
+func (a *AuthService) DeleteAccount(ctx context.Context, userID string) error {
+	return a.repo.DeleteUser(ctx, userID)
+}
+
 // ValidateToken parses a JWT and returns the user ID from claims.
 func (a *AuthService) ValidateToken(tokenStr string) (userID string, err error) {
 	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {

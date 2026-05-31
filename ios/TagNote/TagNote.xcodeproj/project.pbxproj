@@ -33,6 +33,7 @@
 		8A0000010000000000000018 /* MarkdownDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A0000010000000000000118 /* MarkdownDocument.swift */; };
 		8A0000010000000000000019 /* MarkdownDocumentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A0000010000000000000119 /* MarkdownDocumentTests.swift */; };
 		8A000001000000000000001A /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = 8A0000010000000000000120 /* Markdown */; };
+		8A000001000000000000001B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 8A000001000000000000011A /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -70,6 +71,7 @@
 		8A0000010000000000000117 /* TagNoteViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagNoteViewModelTests.swift; sourceTree = "<group>"; };
 		8A0000010000000000000118 /* MarkdownDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownDocument.swift; sourceTree = "<group>"; };
 		8A0000010000000000000119 /* MarkdownDocumentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownDocumentTests.swift; sourceTree = "<group>"; };
+		8A000001000000000000011A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,6 +97,7 @@
 				8A0000010000000000000100 /* Info.plist */,
 				8A0000010000000000000101 /* TagNoteApp.swift */,
 				8A0000010000000000000102 /* AppState.swift */,
+				8A000001000000000000011A /* PrivacyInfo.xcprivacy */,
 				8A0000010000000000000050 /* Models */,
 				8A0000010000000000000051 /* API */,
 				8A0000010000000000000052 /* Storage */,
@@ -192,7 +195,7 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		8A0000010000000000000062 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (8A0000010000000000000013 /* Assets.xcassets in Resources */); runOnlyForDeploymentPostprocessing = 0; };
+		8A0000010000000000000062 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (8A0000010000000000000013 /* Assets.xcassets in Resources */, 8A000001000000000000001B /* PrivacyInfo.xcprivacy in Resources */); runOnlyForDeploymentPostprocessing = 0; };
 		8A0000010000000000000065 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 		8A0000010000000000000068 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */

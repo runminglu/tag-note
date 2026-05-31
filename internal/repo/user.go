@@ -82,6 +82,59 @@ func (r *SQLiteRepo) FindUserByID(ctx context.Context, id string) (*model.User, 
 	return &u, nil
 }
 
+// DeleteUser permanently removes a user and all database records owned by them.
+func (r *SQLiteRepo) DeleteUser(ctx context.Context, userID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM subnotes_fts WHERE id IN (SELECT id FROM subnotes WHERE user_id = ?)`, userID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM subnote_tags WHERE subnote_id IN (SELECT id FROM subnotes WHERE user_id = ?)`, userID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM subnotes WHERE user_id = ?`, userID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM tags WHERE user_id = ?`, userID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM user_settings WHERE user_id = ?`, userID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM email_verification_tokens WHERE user_id = ?`, userID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM password_reset_tokens WHERE user_id = ?`, userID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM magic_link_tokens WHERE user_id = ?`, userID); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM audit_logs WHERE user_id = ?`, userID); err != nil {
+		return err
+	}
+
+	res, err := tx.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, userID)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+
+	return tx.Commit()
+}
+
 // FindUserByGoogleID looks up a user by Google OAuth subject ID.
 func (r *SQLiteRepo) FindUserByGoogleID(ctx context.Context, googleID string) (*model.User, error) {
 	var u model.User

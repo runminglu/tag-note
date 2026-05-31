@@ -75,6 +75,17 @@ func (h *AuthHandler) Me(c *fiber.Ctx) error {
 	return c.JSON(user)
 }
 
+// DeleteAccount handles DELETE /api/v1/auth/account.
+func (h *AuthHandler) DeleteAccount(c *fiber.Ctx) error {
+	userID := c.Locals("userID").(string)
+	if err := h.auth.DeleteAccount(c.Context(), userID); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "could not delete account",
+		})
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
 // GoogleAuth handles POST /api/v1/auth/google.
 func (h *AuthHandler) GoogleAuth(c *fiber.Ctx) error {
 	var req model.GoogleAuthRequest

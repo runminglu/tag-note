@@ -118,6 +118,9 @@ func AuditLog(r repo.Repository) fiber.Handler {
 
 		method := c.Method()
 		path := c.Path()
+		if method == "DELETE" && strings.HasSuffix(path, "/auth/account") {
+			return err
+		}
 		status := c.Response().StatusCode()
 		ip := c.IP()
 		userAgent := c.Get("User-Agent")

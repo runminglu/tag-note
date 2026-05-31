@@ -63,6 +63,7 @@ func (h *Handler) Register(app *fiber.App, ah *AuthHandler, ih *ImageHandler, au
 	}
 
 	protected.Get("/auth/me", ah.Me)
+	protected.Delete("/auth/account", ah.DeleteAccount)
 
 	protected.Post("/notes", h.CreateNote)
 	protected.Get("/notes", h.ListNotes)
