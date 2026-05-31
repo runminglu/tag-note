@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/VictoriaMetrics/metrics v1.43.2
-	github.com/aws/aws-sdk-go-v2 v1.41.7
+	github.com/aws/aws-sdk-go-v2 v1.41.9
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.47
 	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.61.0
 	github.com/gofiber/fiber/v2 v2.52.13
@@ -19,7 +19,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.23 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.23 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.24 // indirect
-	github.com/aws/smithy-go v1.25.1 // indirect
+	github.com/aws/smithy-go v1.26.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
